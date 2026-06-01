@@ -1,7 +1,10 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { mockCandidates } from "../../../data/mock-candidates";
-import { getCandidateById, officeLabels } from "../../../lib/election-stats";
+
+import { officeLabels } from "../../../lib/election-stats";
+import { getElectionCandidateById } from "../../../lib/election-db";
+
+export const dynamic = "force-dynamic";
 
 const materialStatusLabels = {
   pending: "수집 전",
@@ -15,15 +18,9 @@ type CandidatePageProps = {
   }>;
 };
 
-export function generateStaticParams() {
-  return mockCandidates.map((candidate) => ({
-    id: candidate.id
-  }));
-}
-
 export default async function CandidatePage({ params }: CandidatePageProps) {
   const { id } = await params;
-  const candidate = getCandidateById(mockCandidates, id);
+  const candidate = await getElectionCandidateById(id);
 
   if (!candidate) {
     notFound();
@@ -32,7 +29,7 @@ export default async function CandidatePage({ params }: CandidatePageProps) {
   return (
     <main className="page-shell detail-page">
       <Link className="back-link" href="/">
-        ← 후보자 목록
+        후보자 목록
       </Link>
 
       <section className="detail-header">
@@ -54,7 +51,7 @@ export default async function CandidatePage({ params }: CandidatePageProps) {
       <section className="content-grid detail-grid">
         <article className="panel">
           <div className="panel-heading">
-            <h2>기본정보</h2>
+            <h2>기본 정보</h2>
           </div>
           <dl className="info-list">
             <div>
@@ -62,13 +59,14 @@ export default async function CandidatePage({ params }: CandidatePageProps) {
               <dd>{candidate.electionName}</dd>
             </div>
             <div>
-              <dt>선거ID</dt>
+              <dt>선거 ID</dt>
               <dd>{candidate.electionId}</dd>
             </div>
             <div>
               <dt>연령/성별</dt>
               <dd>
-                {candidate.age}세 / {candidate.gender}
+                {candidate.age > 0 ? `${candidate.age}세` : "미기재"} /{" "}
+                {candidate.gender}
               </dd>
             </div>
             <div>
@@ -79,6 +77,18 @@ export default async function CandidatePage({ params }: CandidatePageProps) {
               <dt>학력</dt>
               <dd>{candidate.education}</dd>
             </div>
+            {candidate.careers.length > 0 ? (
+              <div>
+                <dt>경력</dt>
+                <dd>
+                  <ul className="career-list">
+                    {candidate.careers.map((career) => (
+                      <li key={career}>{career}</li>
+                    ))}
+                  </ul>
+                </dd>
+              </div>
+            ) : null}
           </dl>
         </article>
 
@@ -121,7 +131,7 @@ export default async function CandidatePage({ params }: CandidatePageProps) {
       <section className="panel">
         <div className="panel-heading">
           <h2>주요 공약</h2>
-          <span>{candidate.pledges.length}개</span>
+          <span>{candidate.pledges.length.toLocaleString("ko-KR")}개</span>
         </div>
         <div className="pledge-list">
           {candidate.pledges.map((pledge) => (
@@ -129,11 +139,14 @@ export default async function CandidatePage({ params }: CandidatePageProps) {
               <span>{pledge.category}</span>
               <h3>{pledge.title}</h3>
               <p>{pledge.summary}</p>
-              <ul>
-                {pledge.details.map((detail) => (
-                  <li key={detail}>{detail}</li>
-                ))}
-              </ul>
+              <details>
+                <summary>공약 원문 보기</summary>
+                <ul>
+                  {pledge.details.map((detail) => (
+                    <li key={detail}>{detail}</li>
+                  ))}
+                </ul>
+              </details>
             </article>
           ))}
         </div>
@@ -153,7 +166,7 @@ export default async function CandidatePage({ params }: CandidatePageProps) {
             <dd>{candidate.source.pledgeApiId ?? "미연결"}</dd>
           </div>
           <div>
-            <dt>수집시각</dt>
+            <dt>수집 시각</dt>
             <dd>{candidate.source.fetchedAt ?? "수집 전"}</dd>
           </div>
         </dl>

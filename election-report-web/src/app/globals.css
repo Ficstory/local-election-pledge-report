@@ -228,6 +228,67 @@ dt {
   margin-bottom: 0;
 }
 
+.filter-panel {
+  margin-bottom: 18px;
+}
+
+.filter-form {
+  display: grid;
+  grid-template-columns: minmax(220px, 1.4fr) repeat(3, minmax(150px, 1fr)) auto;
+  gap: 12px;
+  align-items: end;
+}
+
+.filter-form label {
+  display: grid;
+  gap: 6px;
+}
+
+.filter-form label span {
+  color: var(--muted);
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.filter-form input,
+.filter-form select {
+  width: 100%;
+  height: 42px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #ffffff;
+  color: var(--text);
+  padding: 0 12px;
+}
+
+.filter-actions {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.filter-actions button,
+.filter-actions a,
+.pagination a {
+  display: inline-flex;
+  height: 42px;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid var(--primary);
+  border-radius: 8px;
+  background: var(--primary);
+  color: #ffffff;
+  padding: 0 14px;
+  font-weight: 800;
+  white-space: nowrap;
+}
+
+.filter-actions a {
+  border-color: var(--line);
+  background: #ffffff;
+  color: var(--muted);
+}
+
 .table-wrap {
   overflow-x: auto;
 }
@@ -259,6 +320,12 @@ td {
 td a {
   color: var(--primary);
   font-weight: 800;
+}
+
+.empty-state {
+  padding: 36px 12px;
+  color: var(--muted);
+  text-align: center;
 }
 
 td small,
@@ -340,6 +407,13 @@ dd {
   line-height: 1.55;
 }
 
+.career-list {
+  display: grid;
+  gap: 4px;
+  margin: 0;
+  padding-left: 18px;
+}
+
 .swatch-row {
   display: flex;
   align-items: center;
@@ -357,6 +431,10 @@ dd {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 14px;
+}
+
+.detail-page .pledge-list {
+  grid-template-columns: 1fr;
 }
 
 .pledge-item {
@@ -385,11 +463,43 @@ dd {
   line-height: 1.5;
 }
 
+.pledge-item details {
+  margin-top: 12px;
+}
+
+.pledge-item summary {
+  cursor: pointer;
+  color: var(--primary);
+  font-size: 14px;
+  font-weight: 800;
+}
+
 .pledge-item ul {
   display: grid;
   gap: 4px;
   margin: 12px 0 0;
   padding-left: 18px;
+}
+
+.pagination {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  margin-top: 18px;
+}
+
+.pagination span {
+  color: var(--muted);
+  font-size: 14px;
+  font-weight: 800;
+}
+
+.pagination a.disabled {
+  pointer-events: none;
+  border-color: var(--line);
+  background: var(--surface-strong);
+  color: var(--muted);
 }
 
 @media (max-width: 900px) {
@@ -407,6 +517,14 @@ dd {
 
   .metric-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .filter-form {
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .filter-actions {
+    grid-column: 1 / -1;
   }
 
   .pledge-list {
@@ -429,6 +547,10 @@ dd {
   }
 
   .metric-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .filter-form {
     grid-template-columns: 1fr;
   }
 

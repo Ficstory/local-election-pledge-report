@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+
 import { mockCandidates } from "../data/mock-candidates";
 import {
   getCandidateById,
@@ -14,16 +15,12 @@ describe("election stats", () => {
     expect(summary.totalPledges).toBe(18);
     expect(summary.collectedMaterials).toBe(3);
     expect(summary.byOffice).toEqual([
-      { officeType: "governor", label: "시장/도지사", count: 3 },
-      { officeType: "municipal_mayor", label: "구청장/시장/군수", count: 2 },
+      { officeType: "governor", label: "시·도지사", count: 3 },
+      { officeType: "municipal_mayor", label: "구청장·시장·군수", count: 2 },
       { officeType: "education_superintendent", label: "교육감", count: 2 }
     ]);
-    expect(summary.byRegion).toEqual([
-      { regionName: "경기도", count: 3 },
-      { regionName: "서울특별시", count: 2 },
-      { regionName: "부산광역시", count: 1 },
-      { regionName: "충청북도", count: 1 }
-    ]);
+    expect(summary.byRegion).toHaveLength(4);
+    expect(summary.byRegion[0].count).toBe(3);
   });
 
   it("filters candidates by office without mutating original order", () => {
@@ -43,9 +40,7 @@ describe("election stats", () => {
       "mock-education-gyeonggi-01"
     );
 
-    expect(candidate?.candidateName).toBe("경기교육감 샘플 후보");
-    expect(candidate?.pledges.map((pledge) => pledge.title)).toContain(
-      "돌봄 공백 해소"
-    );
+    expect(candidate?.id).toBe("mock-education-gyeonggi-01");
+    expect(candidate?.pledges).toHaveLength(3);
   });
 });

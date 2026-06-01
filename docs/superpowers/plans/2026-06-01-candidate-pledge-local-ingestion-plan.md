@@ -54,34 +54,34 @@ This plan does not cover:
 
 ## Task 1: Candidate API Reconnaissance
 
-- [ ] Add `inspect-candidate-api.mjs`.
-- [ ] Use `.env.local` values only.
-- [ ] Mask `ServiceKey` in all console output.
-- [ ] Request candidates for:
+- [x] Add `inspect-candidate-api.mjs`.
+- [x] Use `.env.local` values only.
+- [x] Mask `ServiceKey` in all console output.
+- [x] Request candidates for:
   - `sgId=20260603`
   - `sgTypecode=3`
   - then repeat for `4` and `11`
-- [ ] Print:
+- [x] Print:
   - result code
   - total count
   - first three sanitized rows
   - detected field names
-- [ ] Do not store any new DB data in this task.
+- [x] Do not store any new DB data in this task.
 
 ## Task 2: Candidate Parser Tests
 
-- [ ] Write failing tests in `nec-candidate.test.ts`.
-- [ ] Test that official payload item arrays normalize into internal candidate rows.
-- [ ] Test that a single item response is wrapped into an array.
-- [ ] Test that missing candidate stable keys are handled without throwing.
-- [ ] Test that region/district/party names are preserved even when codes are missing.
+- [x] Write failing tests in `nec-candidate.test.ts`.
+- [x] Test that official payload item arrays normalize into internal candidate rows.
+- [x] Test that a single item response is wrapped into an array.
+- [x] Test that missing candidate stable keys are handled without throwing.
+- [x] Test that region/district/party names are preserved even when codes are missing.
 
 ## Task 3: Candidate Parser Implementation
 
-- [ ] Implement `nec-candidate.ts`.
-- [ ] Keep parser functions pure.
-- [ ] Return plain records that ingestion scripts can upsert.
-- [ ] Run:
+- [x] Implement `nec-candidate.ts`.
+- [x] Keep parser functions pure.
+- [x] Return plain records that ingestion scripts can upsert.
+- [x] Run:
 
 ```powershell
 cmd /c npm test -- src/lib/nec-candidate.test.ts
@@ -89,19 +89,22 @@ cmd /c npm test -- src/lib/nec-candidate.test.ts
 
 ## Task 4: Candidate DB Ingestion
 
-- [ ] Add `ingest-candidates.mjs`.
-- [ ] Create one `FetchRun` per election type request.
-- [ ] Store each raw API page in `RawApiResponse`.
-- [ ] Upsert:
+- [x] Add `ingest-candidates.mjs`.
+- [x] Create one `FetchRun` per election type request.
+- [x] Store each raw API page in `RawApiResponse`.
+- [x] Upsert:
   - `Region`
   - `District`
   - `Party`
   - `Candidate`
-- [ ] Link each candidate to:
+- [x] Preserve official candidate career fields:
+  - `career1`
+  - `career2`
+- [x] Link each candidate to:
   - `Election`
   - `ElectionType`
   - `RawApiResponse`
-- [ ] Run:
+- [x] Run:
 
 ```powershell
 cmd /c npm run db:ingest:candidates
@@ -109,25 +112,26 @@ cmd /c npm run db:ingest:candidates
 
 ## Task 5: Pledge API Reconnaissance
 
-- [ ] Add `inspect-pledge-api.mjs`.
-- [ ] Use confirmed candidate keys from the candidate endpoint.
-- [ ] Print sanitized sample payloads and field names.
-- [ ] Confirm whether pledges are candidate-level, election-type-level, or region-level.
+- [x] Add `inspect-pledge-api.mjs`.
+- [x] Use confirmed candidate keys from the candidate endpoint.
+- [x] Print sanitized sample payloads and field names.
+  - Actual pledge content fields are `prmmCont1` through `prmmCont10`.
+- [x] Confirm whether pledges are candidate-level, election-type-level, or region-level.
 
 ## Task 6: Pledge Parser Tests
 
-- [ ] Write failing tests in `nec-pledge.test.ts`.
-- [ ] Test multi-pledge parsing.
-- [ ] Test single item response wrapping.
-- [ ] Test stable linkage back to a candidate.
-- [ ] Test long text fields without truncation.
+- [x] Write failing tests in `nec-pledge.test.ts`.
+- [x] Test multi-pledge parsing.
+- [x] Test single item response wrapping.
+- [x] Test stable linkage back to a candidate.
+- [x] Test long text fields without truncation.
 
 ## Task 7: Pledge Parser Implementation
 
-- [ ] Implement `nec-pledge.ts`.
-- [ ] Preserve full pledge text in `Pledge.details` when the official payload has structured fields.
-- [ ] Keep title/summary/category fields readable for the UI.
-- [ ] Run:
+- [x] Implement `nec-pledge.ts`.
+- [x] Preserve full pledge text in `Pledge.details` when the official payload has structured fields.
+- [x] Keep title/summary/category fields readable for the UI.
+- [x] Run:
 
 ```powershell
 cmd /c npm test -- src/lib/nec-pledge.test.ts
@@ -135,13 +139,13 @@ cmd /c npm test -- src/lib/nec-pledge.test.ts
 
 ## Task 8: Pledge DB Ingestion
 
-- [ ] Add `ingest-pledges.mjs`.
-- [ ] Store raw API pages in `RawApiResponse`.
-- [ ] Upsert or replace pledge rows per candidate according to the stable official key.
-- [ ] Link each pledge to:
+- [x] Add `ingest-pledges.mjs`.
+- [x] Store raw API pages in `RawApiResponse`.
+- [x] Upsert or replace pledge rows per candidate according to the stable official key.
+- [x] Link each pledge to:
   - `Candidate`
   - `RawApiResponse`
-- [ ] Run:
+- [x] Run:
 
 ```powershell
 cmd /c npm run db:ingest:pledges
@@ -149,36 +153,37 @@ cmd /c npm run db:ingest:pledges
 
 ## Task 9: Verification
 
-- [ ] Run tests:
+- [x] Run tests:
 
 ```powershell
 cmd /c npm test
 ```
 
-- [ ] Run lint:
+- [x] Run lint:
 
 ```powershell
 cmd /c npm run lint
 ```
 
-- [ ] Run build:
+- [x] Run build:
 
 ```powershell
 cmd /c npm run build
 ```
 
-- [ ] Check DB:
+- [x] Check DB:
 
 ```powershell
 cmd /c npm run db:check
 ```
 
-- [ ] Confirm DB counts with a script or Prisma query:
+- [x] Confirm DB counts with a script or Prisma query:
   - elections
   - election types
   - candidates by election type
   - pledges by election type
   - raw API responses by source
+- [x] Confirm `697` of `697` candidates have official career fields populated after candidate re-ingestion.
 
 ## Risks
 

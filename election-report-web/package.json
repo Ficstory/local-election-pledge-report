@@ -11,8 +11,12 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "check:common-code": "node --experimental-strip-types scripts/check-common-code.mjs",
+    "inspect:candidate-api": "node --experimental-strip-types scripts/inspect-candidate-api.mjs",
+    "inspect:pledge-api": "node --experimental-strip-types scripts/inspect-pledge-api.mjs",
     "db:check": "node scripts/check-db.mjs",
+    "db:ingest:candidates": "node --experimental-strip-types scripts/ingest-candidates.mjs",
     "db:ingest:common-code": "node --experimental-strip-types scripts/ingest-common-code.mjs",
+    "db:ingest:pledges": "node --experimental-strip-types scripts/ingest-pledges.mjs",
     "prisma:generate": "prisma generate",
     "prisma:migrate": "prisma migrate dev",
     "prisma:studio": "prisma studio"

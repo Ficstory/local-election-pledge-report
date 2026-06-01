@@ -1,6 +1,6 @@
 # Project Work Summary
 
-Updated: 2026-06-01
+Updated: 2026-06-02
 
 ## Current Direction
 
@@ -75,6 +75,105 @@ The project will stay local-first for the data phase.
   - upserted election type records: `150`
   - election types for `20260603`: `8`
 
+### Candidate Ingestion
+
+- Added candidate API reconnaissance:
+  - `npm run inspect:candidate-api`
+- Confirmed candidate endpoint:
+  - `getPofelcddRegistSttusInfoInqire`
+- Confirmed stable candidate key:
+  - `huboid`
+- Added candidate parser:
+  - `election-report-web/src/lib/nec-candidate.ts`
+  - `election-report-web/src/lib/nec-candidate.test.ts`
+- Added candidate DB ingestion:
+  - `npm run db:ingest:candidates`
+- Latest successful candidate ingestion result:
+  - raw pages: `8`
+  - total candidates: `697`
+  - `sgTypecode=3`: `54`
+  - `sgTypecode=4`: `585`
+  - `sgTypecode=11`: `58`
+  - skipped candidates without stable key: `0`
+- Added official candidate career persistence:
+  - Prisma `Candidate.career1` and `Candidate.career2`
+  - candidate parser and DB ingestion preserve `career1`/`career2`
+  - latest re-ingestion upserted `697` candidates
+  - candidates with at least one career field: `697`
+
+### Pledge API Reconnaissance
+
+- Added pledge API reconnaissance:
+  - `npm run inspect:pledge-api`
+- Confirmed pledge endpoint from the official public-data documentation:
+  - `getCnddtElecPrmsInfoInqire`
+- Confirmed lookup shape:
+  - candidate-level lookup using `sgId`, `sgTypecode`, and `cnddtId`
+- Latest successful pledge API reconnaissance:
+  - `sgTypecode=3`: `200`, `INFO-00`, total count `1`
+  - `sgTypecode=4`: `200`, `INFO-00`, total count `1`
+  - `sgTypecode=11`: `200`, `INFO-00`, total count `1`
+- Confirmed pledge payload shape:
+  - one candidate-level row contains up to 10 pledge slots
+  - order fields: `prmsOrd1` through `prmsOrd10`
+  - category fields: `prmsRealmName1` through `prmsRealmName10`
+  - title fields: `prmsTitle1` through `prmsTitle10`
+  - content fields: `prmmCont1` through `prmmCont10`
+- Added pledge parser:
+  - `election-report-web/src/lib/nec-pledge.ts`
+  - `election-report-web/src/lib/nec-pledge.test.ts`
+- Parser output:
+  - expands one candidate-level row into multiple pledge records
+  - preserves full pledge content in `details.content`
+  - keeps readable `title`, `summary`, `category`, and `priority`
+- Added pledge DB ingestion:
+  - `npm run db:ingest:pledges`
+- Latest successful pledge ingestion result:
+  - processed candidates: `697`
+  - raw pledge pages: `697`
+  - total pledges: `3345`
+  - `sgTypecode=3`: `260`
+  - `sgTypecode=4`: `2795`
+  - `sgTypecode=11`: `290`
+- Current DB counts:
+  - elections: `42`
+  - election types for `20260603`: `8`
+  - candidates: `697`
+  - pledges: `3345`
+  - raw responses by source:
+    - `NEC_COMMON_CODE`: `2`
+    - `NEC_CANDIDATE`: `16`
+    - `NEC_PLEDGE`: `697`
+
+### DB-Backed Web UI
+
+- Switched the Next.js dashboard from mock data to local PostgreSQL.
+- Added DB query/mapping layer:
+  - `election-report-web/src/lib/election-db.ts`
+- Updated dashboard:
+  - reads candidates and pledges from PostgreSQL
+  - shows `DB` data mode
+  - displays `697` candidates and `3,345` pledge records from the local DB
+- Updated candidate detail pages:
+  - dynamic DB-backed route: `/candidates/[id]`
+  - shows official candidate API ID and pledge content from PostgreSQL
+  - shows official candidate career fields when present
+- Added DB-backed list controls:
+  - candidate/name/party/region search
+  - election type filter
+  - region filter
+  - party filter
+  - server query pagination with 50 candidates per page
+- Improved pledge readability:
+  - candidate detail pages show pledge content behind a `공약 원문 보기` disclosure
+- Verified local rendering:
+  - `/`: HTTP `200`, contains DB counts `697` and `3,345`
+  - `/?q=허태정`: HTTP `200`, contains candidate `허태정`
+  - `/?office=governor`: HTTP `200`, contains `시·도지사`
+  - `/?page=2`: HTTP `200`
+  - `/candidates/cmpvk28i8002d74cxwkjrtmfp`: HTTP `200`, contains candidate `허태정`, API ID `100153736`, and pledge title `민생경제 회복`
+  - `/candidates/cmpvk2891000d74cxw5hemjsc`: HTTP `200`, contains rendered `career-list` and pledge `<details>`
+
 ## Current Commands
 
 Run from `election-report-web/`.
@@ -83,9 +182,14 @@ Run from `election-report-web/`.
 docker compose up -d db
 cmd /c npm run db:check
 cmd /c npm run db:ingest:common-code
+cmd /c npm run inspect:candidate-api
+cmd /c npm run db:ingest:candidates
+cmd /c npm run inspect:pledge-api
+cmd /c npm run db:ingest:pledges
 cmd /c npm test
 cmd /c npm run lint
 cmd /c npm run build
+cmd /c npm run dev -- -p 3000
 ```
 
 ## Verified Status
@@ -97,9 +201,15 @@ The latest full verification for the DB foundation passed:
 - `npm run build`
 - `npm run db:check`
 - `npx prisma validate`
-- `npx prisma migrate status`
+- `npx prisma migrate deploy`
 - `npm audit --audit-level=moderate`
 - `npm run db:ingest:common-code`
+- `npm run db:ingest:candidates`
+- `npm run db:ingest:pledges`
+- DB check: `697` of `697` candidates have official career fields populated
+- `npm test -- src/lib/nec-pledge.test.ts`
+- local HTTP check for `/`
+- local HTTP check for `/candidates/[id]`
 
 ## Important Files
 

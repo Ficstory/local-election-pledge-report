@@ -1,8 +1,8 @@
 import type { Candidate, ElectionSummary, OfficeType } from "../types/election";
 
 export const officeLabels: Record<OfficeType, string> = {
-  governor: "시장/도지사",
-  municipal_mayor: "구청장/시장/군수",
+  governor: "시·도지사",
+  municipal_mayor: "구청장·시장·군수",
   education_superintendent: "교육감"
 };
 
