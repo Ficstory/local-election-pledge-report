@@ -1,0 +1,212 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+model Election {
+  id        String   @id @db.VarChar(8)
+  name      String
+  voteDate  DateTime?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  candidates    Candidate[]
+  electionTypes ElectionType[]
+  fetchRuns     FetchRun[]
+  results       ElectionResult[]
+}
+
+model ElectionType {
+  id         String   @id @default(cuid())
+  electionId String   @db.VarChar(8)
+  sgTypecode String
+  name       String
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  election   Election    @relation(fields: [electionId], references: [id], onDelete: Cascade)
+  candidates Candidate[]
+
+  @@unique([electionId, sgTypecode])
+  @@index([sgTypecode])
+}
+
+model Region {
+  id        String   @id @default(cuid())
+  name      String   @unique
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  candidates Candidate[]
+  districts  District[]
+}
+
+model District {
+  id        String   @id @default(cuid())
+  regionId  String
+  code      String?
+  name      String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  region     Region      @relation(fields: [regionId], references: [id], onDelete: Cascade)
+  candidates Candidate[]
+
+  @@unique([regionId, name])
+  @@index([code])
+}
+
+model Party {
+  id        String   @id @default(cuid())
+  name      String   @unique
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  candidates Candidate[]
+}
+
+model Candidate {
+  id               String   @id @default(cuid())
+  electionId       String   @db.VarChar(8)
+  electionTypeId   String
+  regionId         String?
+  districtId       String?
+  partyId          String?
+  rawApiResponseId String?
+  candidateApiId   String?
+  name             String
+  ballotNumber     String?
+  gender           String?
+  age              Int?
+  job              String?
+  education        String?
+  status           String   @default("REGISTERED")
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  district       District?       @relation(fields: [districtId], references: [id], onDelete: SetNull)
+  election       Election        @relation(fields: [electionId], references: [id], onDelete: Cascade)
+  electionType   ElectionType    @relation(fields: [electionTypeId], references: [id], onDelete: Cascade)
+  party          Party?          @relation(fields: [partyId], references: [id], onDelete: SetNull)
+  rawApiResponse RawApiResponse? @relation(fields: [rawApiResponseId], references: [id], onDelete: SetNull)
+  region         Region?         @relation(fields: [regionId], references: [id], onDelete: SetNull)
+  materials      CampaignMaterial[]
+  pledges        Pledge[]
+  result         ElectionResult?
+
+  @@unique([electionId, electionTypeId, candidateApiId])
+  @@index([name])
+  @@index([electionId, electionTypeId])
+}
+
+model Pledge {
+  id               String   @id @default(cuid())
+  candidateId      String
+  rawApiResponseId String?
+  title            String
+  summary          String?
+  category         String?
+  priority         Int?
+  details          Json?
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  candidate      Candidate       @relation(fields: [candidateId], references: [id], onDelete: Cascade)
+  rawApiResponse RawApiResponse? @relation(fields: [rawApiResponseId], references: [id], onDelete: SetNull)
+
+  @@index([candidateId])
+}
+
+model FetchRun {
+  id               String    @id @default(cuid())
+  electionId       String?   @db.VarChar(8)
+  source           String
+  endpoint         String
+  electionTypeCode String?
+  status           String
+  startedAt        DateTime  @default(now())
+  finishedAt       DateTime?
+  rowCount         Int?
+  errorMessage     String?
+
+  election     Election?        @relation(fields: [electionId], references: [id], onDelete: SetNull)
+  rawResponses RawApiResponse[]
+
+  @@index([source, endpoint])
+  @@index([status])
+}
+
+model RawApiResponse {
+  id           String   @id @default(cuid())
+  fetchRunId   String
+  source       String
+  endpoint     String
+  requestHash  String
+  requestMeta  Json
+  responseBody Json
+  fetchedAt    DateTime @default(now())
+
+  fetchRun   FetchRun         @relation(fields: [fetchRunId], references: [id], onDelete: Cascade)
+  candidates Candidate[]
+  pledges    Pledge[]
+  results    ElectionResult[] @relation("ElectionResultRawSource")
+
+  @@unique([fetchRunId, requestHash])
+  @@index([source, endpoint])
+}
+
+model CampaignMaterial {
+  id           String    @id @default(cuid())
+  candidateId  String
+  materialType String
+  sourceUrl    String?
+  storagePath  String?
+  sha256       String?
+  pageCount    Int?
+  collectedAt  DateTime?
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  candidate Candidate               @relation(fields: [candidateId], references: [id], onDelete: Cascade)
+  analysis  MaterialDesignAnalysis?
+
+  @@index([candidateId])
+  @@index([sha256])
+}
+
+model MaterialDesignAnalysis {
+  id             String    @id @default(cuid())
+  materialId     String    @unique
+  dominantColors Json?
+  fontNotes      String?
+  layoutNotes    String?
+  imageRatio     Float?
+  textDensity    Float?
+  analyzedAt     DateTime?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  material CampaignMaterial @relation(fields: [materialId], references: [id], onDelete: Cascade)
+}
+
+model ElectionResult {
+  id                     String   @id @default(cuid())
+  electionId             String   @db.VarChar(8)
+  candidateId            String   @unique
+  sourceRawApiResponseId String?
+  voteCount              Int?
+  voteRate               Decimal? @db.Decimal(6, 3)
+  rank                   Int?
+  elected                Boolean?
+  createdAt              DateTime @default(now())
+  updatedAt              DateTime @updatedAt
+
+  candidate            Candidate       @relation(fields: [candidateId], references: [id], onDelete: Cascade)
+  election             Election        @relation(fields: [electionId], references: [id], onDelete: Cascade)
+  sourceRawApiResponse RawApiResponse? @relation("ElectionResultRawSource", fields: [sourceRawApiResponseId], references: [id], onDelete: SetNull)
+
+  @@index([electionId])
+}
