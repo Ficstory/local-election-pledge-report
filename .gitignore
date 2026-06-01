@@ -1,0 +1,36 @@
+# local agent/runtime state
+.omx/
+
+# dependencies
+node_modules/
+**/node_modules/
+
+# next.js
+.next/
+**/.next/
+out/
+**/out/
+
+# env files
+.env
+.env.local
+.env.*.local
+**/.env
+**/.env.local
+**/.env.*.local
+
+# logs
+*.log
+**/*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# test output
+coverage/
+**/coverage/
+
+# system files
+.DS_Store
+Thumbs.db
