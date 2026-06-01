@@ -2,6 +2,12 @@
 
 Updated: 2026-06-01
 
+## Current Status
+
+OCI deployment is deferred. The project will use local collection and local Docker PostgreSQL first to avoid monthly cloud costs while the data model and report workflow are still changing.
+
+Use this document only when the project needs shared operation or always-on service later. For the current workflow, use `docs/operations/2026-06-01-local-first-collection-operation.md`.
+
 ## Right Now
 
 - Keep the real `DATA_GO_KR_SERVICE_KEY` only in `election-report-web/.env.local`.
