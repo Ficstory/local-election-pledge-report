@@ -78,6 +78,8 @@ erDiagram
     int age
     string job
     string education
+    string career1
+    string career2
     string status
     datetime createdAt
     datetime updatedAt
@@ -175,3 +177,4 @@ erDiagram
 - Nullable region/district/party fields are allowed because early API payloads may not map cleanly.
 - `ElectionType` uses official `sgTypecode`; this keeps market/governor/education-superintendent filtering aligned with NEC.
 - Candidate API IDs are nullable until we confirm the stable key from the candidate endpoint response.
+- Candidate `career1` and `career2` preserve the official candidate API career fields for detail-page inspection.

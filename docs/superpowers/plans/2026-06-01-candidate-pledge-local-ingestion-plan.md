@@ -200,3 +200,16 @@ cmd /c npm run db:check
 - Raw API responses are stored for all successful calls.
 - Re-running ingestion does not duplicate normalized rows.
 - The web app can start reading from PostgreSQL in the next phase.
+
+## Handoff To Next Work
+
+This plan is complete. The next detailed roadmap is:
+
+- `docs/roadmap/2026-06-02-next-work-roadmap.md`
+
+Immediate next task:
+
+- Start campaign material API reconnaissance.
+- Confirm the official endpoint and required params.
+- Confirm whether `DATA_GO_KR_SERVICE_KEY` has access.
+- Do not write material DB rows until the endpoint response shape is confirmed.

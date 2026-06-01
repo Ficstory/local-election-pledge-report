@@ -12,6 +12,35 @@ The project will stay local-first for the data phase.
 - Avoid AWS/RDS/OCI monthly cost until there is a real need for public operation.
 - Revisit deployment only after useful data exists.
 
+## Work Sequence Snapshot
+
+1. Project direction: chose local-first data collection before cloud deployment.
+2. App foundation: created the Next.js app under `election-report-web/`.
+3. DB foundation: added Docker PostgreSQL, Prisma, schema, migration, and DB health check.
+4. Common code ingestion: collected official election and election-type codes.
+5. Candidate API reconnaissance: confirmed candidate endpoint and stable key `huboid`.
+6. Candidate ingestion: parsed and stored `697` official candidates.
+7. Candidate career persistence: added `career1` and `career2`, then re-ingested candidates.
+8. Pledge API reconnaissance: confirmed candidate-level pledge endpoint and slot fields.
+9. Pledge ingestion: parsed and stored `3,345` official pledge records.
+10. DB-backed web UI: switched dashboard/detail pages from mock data to PostgreSQL.
+11. Web inspection controls: added search, filters, pagination, pledge disclosure, and career display.
+12. Verification and Git: passed tests/lint/build/local HTTP checks, then pushed to `origin/main`.
+
+## Next Work
+
+The next immediate work is campaign material collection.
+
+- Start with API reconnaissance for official campaign material metadata/files.
+- Do not write DB rows during the first reconnaissance step.
+- Confirm whether the existing `DATA_GO_KR_SERVICE_KEY` has access.
+- Confirm whether the API returns direct PDF/image URLs or another lookup shape.
+- Add schema changes only after the endpoint shape is confirmed.
+
+Detailed roadmap:
+
+- `docs/roadmap/2026-06-02-next-work-roadmap.md`
+
 ## Completed Work
 
 ### Repository And App
@@ -217,3 +246,4 @@ The latest full verification for the DB foundation passed:
 - ERD: `docs/erd/2026-06-01-election-data-erd.md`
 - Local-first operation: `docs/operations/2026-06-01-local-first-collection-operation.md`
 - Next collection plan: `docs/superpowers/plans/2026-06-01-candidate-pledge-local-ingestion-plan.md`
+- Detailed next roadmap: `docs/roadmap/2026-06-02-next-work-roadmap.md`
