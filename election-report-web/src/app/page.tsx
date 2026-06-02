@@ -274,6 +274,10 @@ export default async function Home({ searchParams }: HomeProps) {
                     <span className={`status-pill ${candidate.material.status}`}>
                       {materialStatusLabels[candidate.material.status]}
                     </span>
+                    <small>
+                      자료 {candidate.material.materialCount ?? 0}개 / 다운로드{" "}
+                      {candidate.material.downloadedCount ?? 0}개
+                    </small>
                   </td>
                 </tr>
               ))}

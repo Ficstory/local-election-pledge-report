@@ -31,6 +31,12 @@ pnpm-debug.log*
 coverage/
 **/coverage/
 
+# downloaded election material PDFs
+election-report-web/storage/materials/**
+!election-report-web/storage/
+!election-report-web/storage/materials/
+!election-report-web/storage/materials/.gitkeep
+
 # system files
 .DS_Store
 Thumbs.db

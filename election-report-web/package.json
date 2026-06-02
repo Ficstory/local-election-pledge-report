@@ -13,10 +13,13 @@
     "check:common-code": "node --experimental-strip-types scripts/check-common-code.mjs",
     "inspect:candidate-api": "node --experimental-strip-types scripts/inspect-candidate-api.mjs",
     "inspect:pledge-api": "node --experimental-strip-types scripts/inspect-pledge-api.mjs",
+    "inspect:policy-materials": "node --experimental-strip-types scripts/inspect-policy-materials.mjs",
     "db:check": "node scripts/check-db.mjs",
     "db:ingest:candidates": "node --experimental-strip-types scripts/ingest-candidates.mjs",
     "db:ingest:common-code": "node --experimental-strip-types scripts/ingest-common-code.mjs",
+    "db:ingest:policy-materials": "node --experimental-strip-types scripts/ingest-policy-materials.mjs",
     "db:ingest:pledges": "node --experimental-strip-types scripts/ingest-pledges.mjs",
+    "db:download:policy-materials": "node --experimental-strip-types scripts/download-policy-materials.mjs",
     "prisma:generate": "prisma generate",
     "prisma:migrate": "prisma migrate dev",
     "prisma:studio": "prisma studio"

@@ -299,6 +299,10 @@ table {
   border-collapse: collapse;
 }
 
+.material-table {
+  min-width: 980px;
+}
+
 th,
 td {
   padding: 14px 12px;
@@ -320,6 +324,26 @@ td {
 td a {
   color: var(--primary);
   font-weight: 800;
+}
+
+.text-link {
+  color: var(--primary);
+  font-weight: 800;
+}
+
+.hash-text {
+  display: inline-block;
+  max-width: 240px;
+  overflow-wrap: anywhere;
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+.empty-copy {
+  margin-bottom: 0;
+  color: var(--muted);
+  line-height: 1.5;
 }
 
 .empty-state {

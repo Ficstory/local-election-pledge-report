@@ -12,11 +12,26 @@ const materialStatusLabels = {
   analyzed: "분석 완료"
 };
 
+const downloadStatusLabels: Record<string, string> = {
+  DOWNLOADED: "다운로드 완료",
+  FAILED: "실패",
+  METADATA_ONLY: "메타데이터만",
+  SKIPPED_NO_URL: "URL 없음"
+};
+
 type CandidatePageProps = {
   params: Promise<{
     id: string;
   }>;
 };
+
+function formatBytes(bytes: number | undefined) {
+  if (bytes === undefined) {
+    return "미기록";
+  }
+
+  return `${bytes.toLocaleString("ko-KR")} bytes`;
+}
 
 export default async function CandidatePage({ params }: CandidatePageProps) {
   const { id } = await params;
@@ -126,6 +141,78 @@ export default async function CandidatePage({ params }: CandidatePageProps) {
             </div>
           </dl>
         </article>
+      </section>
+
+      <section className="panel">
+        <div className="panel-heading">
+          <h2>선거자료</h2>
+          <span>{candidate.material.materialCount ?? 0}개</span>
+        </div>
+        {candidate.material.materials?.length ? (
+          <div className="table-wrap">
+            <table className="material-table">
+              <thead>
+                <tr>
+                  <th>자료명</th>
+                  <th>메타데이터</th>
+                  <th>다운로드</th>
+                  <th>원본 CDN</th>
+                  <th>로컬 저장 경로</th>
+                  <th>sha256</th>
+                  <th>fileSizeBytes</th>
+                </tr>
+              </thead>
+              <tbody>
+                {candidate.material.materials.map((material) => (
+                  <tr key={material.id}>
+                    <td>
+                      <span className="region-name">{material.title}</span>
+                      <small>{material.materialType}</small>
+                    </td>
+                    <td>
+                      {material.metadataCollectedAt ? "수집됨" : "미수집"}
+                      {material.metadataCollectedAt ? (
+                        <small>{material.metadataCollectedAt}</small>
+                      ) : null}
+                    </td>
+                    <td>
+                      {downloadStatusLabels[material.downloadStatus] ??
+                        material.downloadStatus}
+                      {material.collectedAt ? (
+                        <small>{material.collectedAt}</small>
+                      ) : null}
+                    </td>
+                    <td>
+                      {material.sourceUrl ? (
+                        <a
+                          className="text-link"
+                          href={material.sourceUrl}
+                          rel="noreferrer"
+                          target="_blank"
+                        >
+                          CDN 열기
+                        </a>
+                      ) : (
+                        "없음"
+                      )}
+                    </td>
+                    <td>{material.storagePath ?? "미저장"}</td>
+                    <td>
+                      {material.sha256 ? (
+                        <code className="hash-text">{material.sha256}</code>
+                      ) : (
+                        "미기록"
+                      )}
+                    </td>
+                    <td>{formatBytes(material.fileSizeBytes)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        ) : (
+          <p className="empty-copy">수집된 선거자료 메타데이터가 없습니다.</p>
+        )}
       </section>
 
       <section className="panel">

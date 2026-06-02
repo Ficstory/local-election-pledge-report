@@ -1,0 +1,45 @@
+{
+  "generatedAt": "2026-06-02T02:19:11.143Z",
+  "summaries": {
+    "localHeads": {
+      "label": "LOCAL_HEADS_SG3_SG4",
+      "sgTypecodes": [
+        "3",
+        "4"
+      ],
+      "file": "local-heads-downloaded.jsonl",
+      "outputPath": "storage/material-groups/20260603/local-heads-downloaded.jsonl",
+      "candidateCount": 617,
+      "materialCount": 1284,
+      "totalMB": 4906.37,
+      "byMaterialType": {
+        "ELECTION_BULLETIN": 613,
+        "TOP_FIVE_PLEDGES": 611,
+        "PLEDGE_DOCUMENT": 60
+      },
+      "bySgTypecode": {
+        "3": 114,
+        "4": 1170
+      }
+    },
+    "educationSuperintendents": {
+      "label": "EDUCATION_SUPERINTENDENTS_SG11",
+      "sgTypecodes": [
+        "11"
+      ],
+      "file": "education-superintendents-downloaded.jsonl",
+      "outputPath": "storage/material-groups/20260603/education-superintendents-downloaded.jsonl",
+      "candidateCount": 58,
+      "materialCount": 131,
+      "totalMB": 462.36,
+      "byMaterialType": {
+        "ELECTION_BULLETIN": 58,
+        "PLEDGE_DOCUMENT": 15,
+        "TOP_FIVE_PLEDGES": 58
+      },
+      "bySgTypecode": {
+        "11": 131
+      }
+    }
+  }
+}

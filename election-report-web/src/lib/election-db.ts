@@ -3,6 +3,7 @@ import { PrismaClient, type Prisma } from "@prisma/client";
 
 import type {
   Candidate,
+  CandidateCampaignMaterial,
   CampaignMaterialAnalysis,
   OfficeType,
   Pledge
@@ -38,6 +39,12 @@ type DbCandidate = Prisma.CandidateGetPayload<{
     party: true;
     pledges: {
       orderBy: [{ priority: "asc" }, { createdAt: "asc" }];
+    };
+    materials: {
+      include: {
+        analysis: true;
+      };
+      orderBy: [{ materialType: "asc" }, { title: "asc" }, { createdAt: "asc" }];
     };
     rawApiResponse: true;
     region: true;
@@ -104,12 +111,62 @@ function candidateStatusFromDb(status: string): Candidate["status"] {
   }
 }
 
-function defaultMaterial(): CampaignMaterialAnalysis {
+function jsonStringArray(value: Prisma.JsonValue | null | undefined): string[] {
+  return Array.isArray(value)
+    ? value.filter((item): item is string => typeof item === "string")
+    : [];
+}
+
+function mapCampaignMaterial(
+  material: DbCandidate["materials"][number]
+): CandidateCampaignMaterial {
   return {
-    status: "pending",
-    dominantColors: [],
-    fontNotes: "공보물 수집 전",
-    layoutNotes: "공보물 수집 후 분석 예정"
+    id: material.id,
+    materialType: material.materialType,
+    title: material.title ?? material.materialType,
+    sourceUrl: material.sourceUrl ?? undefined,
+    sourceFilePath: material.sourceFilePath ?? undefined,
+    storagePath: material.storagePath ?? undefined,
+    sha256: material.sha256 ?? undefined,
+    fileName: material.fileName ?? undefined,
+    mimeType: material.mimeType ?? undefined,
+    fileSizeBytes: material.fileSizeBytes ?? undefined,
+    downloadStatus: material.downloadStatus,
+    metadataCollectedAt: material.metadataCollectedAt?.toISOString(),
+    collectedAt: material.collectedAt?.toISOString()
+  };
+}
+
+function mapMaterial(materials: DbCandidate["materials"]): CampaignMaterialAnalysis {
+  const materialRows = materials.map(mapCampaignMaterial);
+  const analyzedMaterial = materials.find((material) => material.analysis);
+  const firstPdfMaterial = materialRows.find((material) => material.sourceUrl);
+  const downloadedCount = materialRows.filter(
+    (material) => material.downloadStatus === "DOWNLOADED"
+  ).length;
+  const metadataCollectedCount = materialRows.filter(
+    (material) => material.metadataCollectedAt
+  ).length;
+
+  return {
+    status: analyzedMaterial
+      ? "analyzed"
+      : materialRows.length > 0
+        ? "collected"
+        : "pending",
+    pdfUrl: firstPdfMaterial?.sourceUrl,
+    pageCount: materials.find((material) => material.pageCount)?.pageCount ?? undefined,
+    materialCount: materialRows.length,
+    metadataCollectedCount,
+    downloadedCount,
+    materials: materialRows,
+    dominantColors: jsonStringArray(analyzedMaterial?.analysis?.dominantColors),
+    fontNotes:
+      analyzedMaterial?.analysis?.fontNotes ??
+      (materialRows.length > 0 ? "분석 전" : "공보물 수집 전"),
+    layoutNotes:
+      analyzedMaterial?.analysis?.layoutNotes ??
+      (materialRows.length > 0 ? "분석 전" : "공보물 수집 후 분석 예정")
   };
 }
 
@@ -167,7 +224,7 @@ function mapCandidate(candidate: DbCandidate): Candidate {
     education: candidate.education ?? "미기재",
     careers: candidateCareers(candidate),
     pledges: candidate.pledges.map(mapPledge),
-    material: defaultMaterial(),
+    material: mapMaterial(candidate.materials),
     source: {
       candidateApiId: candidate.candidateApiId ?? undefined,
       pledgeApiId: candidate.candidateApiId ?? undefined,
@@ -206,6 +263,12 @@ export async function listElectionCandidates(): Promise<Candidate[]> {
       party: true,
       pledges: {
         orderBy: [{ priority: "asc" }, { createdAt: "asc" }]
+      },
+      materials: {
+        include: {
+          analysis: true
+        },
+        orderBy: [{ materialType: "asc" }, { title: "asc" }, { createdAt: "asc" }]
       },
       rawApiResponse: true,
       region: true
@@ -310,6 +373,12 @@ export async function listElectionCandidatePage({
       pledges: {
         orderBy: [{ priority: "asc" }, { createdAt: "asc" }]
       },
+      materials: {
+        include: {
+          analysis: true
+        },
+        orderBy: [{ materialType: "asc" }, { title: "asc" }, { createdAt: "asc" }]
+      },
       rawApiResponse: true,
       region: true
     },
@@ -332,6 +401,12 @@ export async function listElectionCandidatePage({
       party: true,
       pledges: {
         orderBy: [{ priority: "asc" }, { createdAt: "asc" }]
+      },
+      materials: {
+        include: {
+          analysis: true
+        },
+        orderBy: [{ materialType: "asc" }, { title: "asc" }, { createdAt: "asc" }]
       },
       rawApiResponse: true,
       region: true
@@ -399,6 +474,12 @@ export async function getElectionCandidateById(
       party: true,
       pledges: {
         orderBy: [{ priority: "asc" }, { createdAt: "asc" }]
+      },
+      materials: {
+        include: {
+          analysis: true
+        },
+        orderBy: [{ materialType: "asc" }, { title: "asc" }, { createdAt: "asc" }]
       },
       rawApiResponse: true,
       region: true

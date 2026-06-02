@@ -5,6 +5,28 @@ export type OfficeType =
 
 export type MaterialStatus = "pending" | "collected" | "analyzed";
 
+export type MaterialDownloadStatus =
+  | "METADATA_ONLY"
+  | "DOWNLOADED"
+  | "FAILED"
+  | "SKIPPED_NO_URL";
+
+export type CandidateCampaignMaterial = {
+  id: string;
+  materialType: string;
+  title: string;
+  sourceUrl?: string;
+  sourceFilePath?: string;
+  storagePath?: string;
+  sha256?: string;
+  fileName?: string;
+  mimeType?: string;
+  fileSizeBytes?: number;
+  downloadStatus: MaterialDownloadStatus | string;
+  metadataCollectedAt?: string;
+  collectedAt?: string;
+};
+
 export type Pledge = {
   id: string;
   title: string;
@@ -17,6 +39,10 @@ export type CampaignMaterialAnalysis = {
   status: MaterialStatus;
   pdfUrl?: string;
   pageCount?: number;
+  materialCount?: number;
+  metadataCollectedCount?: number;
+  downloadedCount?: number;
+  materials?: CandidateCampaignMaterial[];
   dominantColors: string[];
   fontNotes: string;
   layoutNotes: string;

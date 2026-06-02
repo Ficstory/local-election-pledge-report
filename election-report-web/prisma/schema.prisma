@@ -161,22 +161,36 @@ model RawApiResponse {
 }
 
 model CampaignMaterial {
-  id           String    @id @default(cuid())
-  candidateId  String
-  materialType String
-  sourceUrl    String?
-  storagePath  String?
-  sha256       String?
-  pageCount    Int?
-  collectedAt  DateTime?
-  createdAt    DateTime  @default(now())
-  updatedAt    DateTime  @updatedAt
+  id                  String    @id @default(cuid())
+  candidateId         String
+  materialType        String
+  sourceSystem        String    @default("POLICY_NEC")
+  sourceMaterialId    String
+  sourceFilePath      String?
+  title               String?
+  fileName            String?
+  mimeType            String?
+  fileSizeBytes       Int?
+  downloadStatus      String    @default("METADATA_ONLY")
+  errorMessage        String?
+  metadataCollectedAt DateTime?
+  sourceUrl           String?
+  storagePath         String?
+  sha256              String?
+  pageCount           Int?
+  collectedAt         DateTime?
+  createdAt           DateTime  @default(now())
+  updatedAt           DateTime  @updatedAt
 
   candidate Candidate               @relation(fields: [candidateId], references: [id], onDelete: Cascade)
   analysis  MaterialDesignAnalysis?
 
   @@index([candidateId])
+  @@index([materialType])
+  @@index([downloadStatus])
+  @@index([sourceMaterialId])
   @@index([sha256])
+  @@unique([sourceSystem, sourceMaterialId])
 }
 
 model MaterialDesignAnalysis {
