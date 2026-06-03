@@ -278,6 +278,35 @@ export async function listElectionCandidates(): Promise<Candidate[]> {
   return rows.map(mapCandidate).sort(sortCandidates);
 }
 
+export async function listElectionCandidatesByFilters(
+  filters: CandidateListFilters
+): Promise<Candidate[]> {
+  const electionId = process.env.NEXT_PUBLIC_DEFAULT_SG_ID?.trim();
+  const where = buildCandidateWhere(electionId, filters);
+  const rows = await prisma.candidate.findMany({
+    where,
+    include: {
+      district: true,
+      election: true,
+      electionType: true,
+      party: true,
+      pledges: {
+        orderBy: [{ priority: "asc" }, { createdAt: "asc" }]
+      },
+      materials: {
+        include: {
+          analysis: true
+        },
+        orderBy: [{ materialType: "asc" }, { title: "asc" }, { createdAt: "asc" }]
+      },
+      rawApiResponse: true,
+      region: true
+    }
+  });
+
+  return rows.map(mapCandidate).sort(sortCandidates);
+}
+
 function buildCandidateWhere(
   electionId: string | undefined,
   filters: CandidateListFilters

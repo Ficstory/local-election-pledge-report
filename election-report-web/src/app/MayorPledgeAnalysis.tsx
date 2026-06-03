@@ -1,0 +1,363 @@
+"use client";
+
+import { useMemo, useState, type CSSProperties } from "react";
+import Link from "next/link";
+
+import {
+  tokenizePledgeText,
+  type CandidateKeywordSummary,
+  type MayorKeyword,
+  type MayorPledgeFilter,
+  type MayorPledgeItem,
+  type PolicyCategorySummary
+} from "../lib/mayor-pledge-analysis";
+
+type CandidateOption = {
+  id: string;
+  label: string;
+  partyName: string;
+  regionName: string;
+};
+
+type MayorPledgeAnalysisProps = {
+  filters: MayorPledgeFilter;
+  options: {
+    candidates: CandidateOption[];
+    parties: string[];
+    regions: string[];
+  };
+  analysis: {
+    candidateKeywords: CandidateKeywordSummary[];
+    keywords: MayorKeyword[];
+    pledgeItems: MayorPledgeItem[];
+    policyCategories: PolicyCategorySummary[];
+  };
+};
+
+type WordStyle = CSSProperties & {
+  "--word-size": string;
+};
+
+function keywordMatchesPledge(pledge: MayorPledgeItem, keyword: string) {
+  return tokenizePledgeText(pledge.pledgeText).includes(keyword);
+}
+
+function snippetFor(pledge: MayorPledgeItem) {
+  const text = pledge.pledgeText || pledge.pledgeSummary || pledge.pledgeTitle;
+  return text.length > 170 ? `${text.slice(0, 170)}...` : text;
+}
+
+function fontSizeFor(keyword: MayorKeyword, maxCount: number) {
+  const ratio = maxCount > 0 ? keyword.count / maxCount : 0;
+  return 15 + Math.pow(ratio, 0.74) * 26;
+}
+
+function wordStyle(keyword: MayorKeyword, maxCount: number): WordStyle {
+  return {
+    "--word-size": `${fontSizeFor(keyword, maxCount).toFixed(1)}px`
+  };
+}
+
+function selectedTitle(selectedKeyword: string | null) {
+  return selectedKeyword ? `'${selectedKeyword}' 관련 공약` : "공약 목록";
+}
+
+export function MayorPledgeAnalysis({
+  analysis,
+  filters,
+  options
+}: MayorPledgeAnalysisProps) {
+  const [selectedKeyword, setSelectedKeyword] = useState<string | null>(null);
+  const topKeywords = analysis.keywords.slice(0, 20);
+  const cloudKeywords = analysis.keywords.slice(0, 34);
+  const maxCount = cloudKeywords[0]?.count ?? 1;
+  const visiblePledges = useMemo(
+    () =>
+      selectedKeyword
+        ? analysis.pledgeItems.filter((pledge) =>
+            keywordMatchesPledge(pledge, selectedKeyword)
+          )
+        : analysis.pledgeItems,
+    [analysis.pledgeItems, selectedKeyword]
+  );
+  const hasFilters = Boolean(
+    filters.regionName || filters.partyName || filters.candidateId || filters.query
+  );
+  const hasAnalysisText = analysis.pledgeItems.length > 0;
+  const hasEnoughKeywords = cloudKeywords.length > 0;
+
+  function activateKeyword(keyword: string) {
+    setSelectedKeyword((current) => (current === keyword ? null : keyword));
+  }
+
+  return (
+    <section className="mayor-analysis" aria-labelledby="mayor-analysis-title">
+      <div className="mayor-analysis-header">
+        <p className="eyebrow">시장 후보 공약</p>
+        <h1 id="mayor-analysis-title">시장 공약 분석</h1>
+        <p className="lead">
+          지역별 시장 후보자의 주요 공약 키워드와 원문을 확인하세요.
+        </p>
+      </div>
+
+      <section className="panel filter-panel search-panel">
+        <div className="search-panel-heading">
+          <div>
+            <h2>분석 조건</h2>
+            <p>후보자를 선택하지 않으면 조건에 맞는 전체 시장 후보 공약을 합산합니다.</p>
+          </div>
+        </div>
+        <form className="filter-form mayor-filter-form">
+          <input name="election" type="hidden" value="mayor" />
+          <label>
+            <span>지역 선택</span>
+            <select defaultValue={filters.regionName ?? ""} name="region">
+              <option value="">전체 지역</option>
+              {options.regions.map((region) => (
+                <option key={region} value={region}>
+                  {region}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label>
+            <span>정당 선택</span>
+            <select defaultValue={filters.partyName ?? ""} name="party">
+              <option value="">전체 정당</option>
+              {options.parties.map((party) => (
+                <option key={party} value={party}>
+                  {party}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label>
+            <span>후보자 선택</span>
+            <select defaultValue={filters.candidateId ?? ""} name="candidate">
+              <option value="">전체 후보 합산</option>
+              {options.candidates.map((candidate) => (
+                <option key={candidate.id} value={candidate.id}>
+                  {candidate.label}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label>
+            <span>검색어 입력</span>
+            <input
+              defaultValue={filters.query ?? ""}
+              name="q"
+              placeholder="예: 교통, 일자리, 돌봄"
+              type="search"
+            />
+          </label>
+          <div className="filter-actions">
+            <button type="submit">검색</button>
+            {hasFilters || selectedKeyword ? (
+              <Link href="/?election=mayor" onClick={() => setSelectedKeyword(null)}>
+                초기화
+              </Link>
+            ) : null}
+          </div>
+        </form>
+      </section>
+
+      {!hasAnalysisText ? (
+        <div className="empty-result mayor-empty-state">
+          <strong>조건에 맞는 시장 후보 공약이 없습니다.</strong>
+          <p>지역이나 후보자 조건을 변경해보세요.</p>
+        </div>
+      ) : (
+        <>
+          <section className="mayor-cloud-grid" aria-label="주요 공약 키워드">
+            <div className="mayor-wordcloud-panel">
+              <div className="mayor-section-heading">
+                <div>
+                  <h2>주요 공약 키워드</h2>
+                  <p>단어를 선택하면 관련 공약 원문을 확인할 수 있습니다.</p>
+                </div>
+                {selectedKeyword ? (
+                  <button
+                    className="text-reset-button"
+                    onClick={() => setSelectedKeyword(null)}
+                    type="button"
+                  >
+                    전체 보기
+                  </button>
+                ) : null}
+              </div>
+
+              {hasEnoughKeywords ? (
+                <div className="mayor-wordcloud-stage" aria-live="polite">
+                  {cloudKeywords.map((keyword) => (
+                    <button
+                      className={`mayor-cloud-word ${
+                        selectedKeyword === keyword.keyword ? "selected" : ""
+                      }`}
+                      key={keyword.keyword}
+                      onClick={() => activateKeyword(keyword.keyword)}
+                      style={wordStyle(keyword, maxCount)}
+                      type="button"
+                    >
+                      <span>{keyword.keyword}</span>
+                      <em>{keyword.count.toLocaleString("ko-KR")}</em>
+                    </button>
+                  ))}
+                </div>
+              ) : (
+                <div className="state-panel">
+                  <p>분석할 수 있는 공약 문장이 충분하지 않습니다.</p>
+                </div>
+              )}
+            </div>
+
+            <aside className="mayor-keyword-panel" aria-label="주요 키워드 TOP 20">
+              <div className="mayor-section-heading compact">
+                <h2>주요 키워드 TOP 20</h2>
+              </div>
+              <div className="keyword-rank-list" role="list">
+                {topKeywords.map((keyword, index) => (
+                  <button
+                    className={`keyword-rank-row ${
+                      selectedKeyword === keyword.keyword ? "selected" : ""
+                    }`}
+                    key={keyword.keyword}
+                    onClick={() => activateKeyword(keyword.keyword)}
+                    role="listitem"
+                    type="button"
+                  >
+                    <span>{index + 1}</span>
+                    <strong>{keyword.keyword}</strong>
+                    <em>{keyword.count.toLocaleString("ko-KR")}회</em>
+                    <em>{keyword.pledgeCount.toLocaleString("ko-KR")}개 공약</em>
+                  </button>
+                ))}
+              </div>
+            </aside>
+          </section>
+
+          <section className="candidate-keyword-section">
+            <div className="mayor-section-heading">
+              <div>
+                <h2>후보별 특징 키워드</h2>
+                <p>현재는 후보별 단순 빈도 TOP 5이며, 추후 TF-IDF 방식으로 개선할 수 있습니다.</p>
+              </div>
+            </div>
+            {analysis.candidateKeywords.length > 0 ? (
+              <div className="candidate-keyword-list">
+                {analysis.candidateKeywords.map((candidate) => (
+                  <div className="candidate-keyword-row" key={candidate.candidateId}>
+                    <div>
+                      <strong>{candidate.candidateName}</strong>
+                      <span>
+                        {candidate.partyName} · {candidate.regionName}
+                      </span>
+                    </div>
+                    <div className="keyword-badge-list">
+                      {candidate.keywords.map((keyword) => (
+                        <button
+                          className={selectedKeyword === keyword ? "selected" : ""}
+                          key={`${candidate.candidateId}-${keyword}`}
+                          onClick={() => activateKeyword(keyword)}
+                          type="button"
+                        >
+                          {keyword}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <p className="empty-copy">후보별로 비교할 수 있는 키워드가 없습니다.</p>
+            )}
+          </section>
+
+          {analysis.policyCategories.length > 0 ? (
+            <section className="policy-category-strip" aria-label="정책 분야 보조 분류">
+              <div className="mayor-section-heading compact">
+                <h2>정책 분야 보조 분류</h2>
+                <p>키워드 기반 간단 분류이므로 참고용으로만 제공합니다.</p>
+              </div>
+              <div className="policy-category-list">
+                {analysis.policyCategories.slice(0, 6).map((category) => (
+                  <div className="policy-category-row" key={category.category}>
+                    <strong>{category.category}</strong>
+                    <span>{category.count.toLocaleString("ko-KR")}회</span>
+                    <em>{category.keywords.join(", ")}</em>
+                  </div>
+                ))}
+              </div>
+            </section>
+          ) : null}
+
+          <section className="mayor-pledge-results" aria-live="polite">
+            <div className="mayor-section-heading">
+              <div>
+                <h2>{selectedTitle(selectedKeyword)}</h2>
+                <p>
+                  {visiblePledges.length.toLocaleString("ko-KR")}개 공약을
+                  표시합니다.
+                </p>
+              </div>
+              {selectedKeyword ? (
+                <button
+                  className="text-reset-button"
+                  onClick={() => setSelectedKeyword(null)}
+                  type="button"
+                >
+                  전체 보기
+                </button>
+              ) : null}
+            </div>
+
+            {visiblePledges.length > 0 ? (
+              <div className="mayor-pledge-list">
+                {visiblePledges.map((pledge) => (
+                  <article className="mayor-pledge-row" key={pledge.id}>
+                    <div className="mayor-pledge-copy">
+                      <div className="candidate-meta">
+                        <span>{pledge.candidateName}</span>
+                        <span>{pledge.partyName}</span>
+                        <span>{pledge.regionName}</span>
+                        <span>{pledge.electionName}</span>
+                      </div>
+                      <h3>{pledge.pledgeTitle || pledge.pledgeSummary}</h3>
+                      {pledge.pledgeSummary ? <p>{pledge.pledgeSummary}</p> : null}
+                      <small>{snippetFor(pledge)}</small>
+                    </div>
+                    <div className="mayor-pledge-actions">
+                      {pledge.materialUrl ? (
+                        <a
+                          className="action-button secondary"
+                          href={pledge.materialUrl}
+                          rel="noreferrer"
+                          target="_blank"
+                        >
+                          원문 보기
+                        </a>
+                      ) : (
+                        <span className="action-button disabled">원문 준비 중</span>
+                      )}
+                      <Link
+                        className="action-button primary"
+                        href={`/candidates/${pledge.candidateId}`}
+                      >
+                        후보자 상세 보기
+                      </Link>
+                    </div>
+                  </article>
+                ))}
+              </div>
+            ) : (
+              <div className="empty-result">
+                <strong>선택한 키워드와 연결된 공약이 없습니다.</strong>
+                <p>전체 보기로 돌아가거나 다른 키워드를 선택해보세요.</p>
+              </div>
+            )}
+          </section>
+        </>
+      )}
+    </section>
+  );
+}
