@@ -1,0 +1,5 @@
+ .../src/app/MayorPledgeAnalysis.tsx                | 232 +++++++++++++++------
+ election-report-web/src/app/globals.css            |  36 ++++
+ .../src/lib/mayor-pledge-analysis.test.ts          |  30 +++
+ .../src/lib/mayor-pledge-analysis.ts               |  37 +++-
+ 4 files changed, 276 insertions(+), 59 deletions(-)

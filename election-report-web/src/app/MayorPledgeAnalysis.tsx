@@ -4,6 +4,11 @@ import { useMemo, useState, type CSSProperties } from "react";
 import Link from "next/link";
 
 import {
+  hasHiddenItems,
+  nextVisibleLimit,
+  visibleItems
+} from "../lib/incremental-rendering";
+import {
   tokenizePledgeText,
   type CandidateKeywordSummary,
   type MayorKeyword,
@@ -38,6 +43,16 @@ type WordStyle = CSSProperties & {
   "--word-size": string;
 };
 
+type RenderWindow = {
+  limit: number;
+  scope: string;
+};
+
+const CANDIDATE_KEYWORD_INITIAL_LIMIT = 12;
+const CANDIDATE_KEYWORD_STEP = 12;
+const PLEDGE_INITIAL_LIMIT = 30;
+const PLEDGE_STEP = 30;
+
 function keywordMatchesPledge(pledge: MayorPledgeItem, keyword: string) {
   return tokenizePledgeText(pledge.pledgeText).includes(keyword);
 }
@@ -62,12 +77,24 @@ function selectedTitle(selectedKeyword: string | null) {
   return selectedKeyword ? `'${selectedKeyword}' 관련 공약` : "공약 목록";
 }
 
+function scopedLimit(window: RenderWindow, scope: string, initialLimit: number) {
+  return window.scope === scope ? window.limit : initialLimit;
+}
+
 export function MayorPledgeAnalysis({
   analysis,
   filters,
   options
 }: MayorPledgeAnalysisProps) {
   const [selectedKeyword, setSelectedKeyword] = useState<string | null>(null);
+  const [candidateKeywordWindow, setCandidateKeywordWindow] = useState<RenderWindow>({
+    limit: CANDIDATE_KEYWORD_INITIAL_LIMIT,
+    scope: ""
+  });
+  const [pledgeWindow, setPledgeWindow] = useState<RenderWindow>({
+    limit: PLEDGE_INITIAL_LIMIT,
+    scope: ""
+  });
   const topKeywords = analysis.keywords.slice(0, 20);
   const cloudKeywords = analysis.keywords.slice(0, 34);
   const maxCount = cloudKeywords[0]?.count ?? 1;
@@ -85,9 +112,72 @@ export function MayorPledgeAnalysis({
   );
   const hasAnalysisText = analysis.pledgeItems.length > 0;
   const hasEnoughKeywords = cloudKeywords.length > 0;
+  const firstCandidateKeywordId = analysis.candidateKeywords[0]?.candidateId ?? "";
+  const lastCandidateKeywordId =
+    analysis.candidateKeywords.at(-1)?.candidateId ?? "";
+  const candidateKeywordScope = `${analysis.candidateKeywords.length}:${firstCandidateKeywordId}:${lastCandidateKeywordId}`;
+  const firstPledgeId = visiblePledges[0]?.id ?? "";
+  const lastPledgeId = visiblePledges.at(-1)?.id ?? "";
+  const pledgeScope = `${selectedKeyword ?? "all"}:${visiblePledges.length}:${firstPledgeId}:${lastPledgeId}`;
+  const candidateKeywordLimit = scopedLimit(
+    candidateKeywordWindow,
+    candidateKeywordScope,
+    CANDIDATE_KEYWORD_INITIAL_LIMIT
+  );
+  const pledgeLimit = scopedLimit(pledgeWindow, pledgeScope, PLEDGE_INITIAL_LIMIT);
+  const renderedCandidateKeywords = useMemo(
+    () => visibleItems(analysis.candidateKeywords, candidateKeywordLimit),
+    [analysis.candidateKeywords, candidateKeywordLimit]
+  );
+  const renderedPledges = useMemo(
+    () => visibleItems(visiblePledges, pledgeLimit),
+    [visiblePledges, pledgeLimit]
+  );
+  const hasMoreCandidateKeywords = hasHiddenItems({
+    total: analysis.candidateKeywords.length,
+    visible: renderedCandidateKeywords.length
+  });
+  const hasMorePledges = hasHiddenItems({
+    total: visiblePledges.length,
+    visible: renderedPledges.length
+  });
 
   function activateKeyword(keyword: string) {
     setSelectedKeyword((current) => (current === keyword ? null : keyword));
+  }
+
+  function showMoreCandidateKeywords() {
+    setCandidateKeywordWindow((currentWindow) => {
+      const current = scopedLimit(
+        currentWindow,
+        candidateKeywordScope,
+        CANDIDATE_KEYWORD_INITIAL_LIMIT
+      );
+
+      return {
+        limit: nextVisibleLimit({
+          current,
+          step: CANDIDATE_KEYWORD_STEP,
+          total: analysis.candidateKeywords.length
+        }),
+        scope: candidateKeywordScope
+      };
+    });
+  }
+
+  function showMorePledges() {
+    setPledgeWindow((currentWindow) => {
+      const current = scopedLimit(currentWindow, pledgeScope, PLEDGE_INITIAL_LIMIT);
+
+      return {
+        limit: nextVisibleLimit({
+          current,
+          step: PLEDGE_STEP,
+          total: visiblePledges.length
+        }),
+        scope: pledgeScope
+      };
+    });
   }
 
   return (
@@ -244,30 +334,43 @@ export function MayorPledgeAnalysis({
               </div>
             </div>
             {analysis.candidateKeywords.length > 0 ? (
-              <div className="candidate-keyword-list">
-                {analysis.candidateKeywords.map((candidate) => (
-                  <div className="candidate-keyword-row" key={candidate.candidateId}>
-                    <div>
-                      <strong>{candidate.candidateName}</strong>
+              <>
+                <div className="candidate-keyword-list">
+                  {renderedCandidateKeywords.map((candidate) => (
+                    <div className="candidate-keyword-row" key={candidate.candidateId}>
+                      <div>
+                        <strong>{candidate.candidateName}</strong>
+                        <span>
+                          {candidate.partyName} · {candidate.regionName}
+                        </span>
+                      </div>
+                      <div className="keyword-badge-list">
+                        {candidate.keywords.map((keyword) => (
+                          <button
+                            className={selectedKeyword === keyword ? "selected" : ""}
+                            key={`${candidate.candidateId}-${keyword}`}
+                            onClick={() => activateKeyword(keyword)}
+                            type="button"
+                          >
+                            {keyword}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+                {hasMoreCandidateKeywords ? (
+                  <div className="incremental-load-more">
+                    <button onClick={showMoreCandidateKeywords} type="button">
+                      후보별 특징 더보기
                       <span>
-                        {candidate.partyName} · {candidate.regionName}
+                        {renderedCandidateKeywords.length.toLocaleString("ko-KR")} /{" "}
+                        {analysis.candidateKeywords.length.toLocaleString("ko-KR")}명
                       </span>
-                    </div>
-                    <div className="keyword-badge-list">
-                      {candidate.keywords.map((keyword) => (
-                        <button
-                          className={selectedKeyword === keyword ? "selected" : ""}
-                          key={`${candidate.candidateId}-${keyword}`}
-                          onClick={() => activateKeyword(keyword)}
-                          type="button"
-                        >
-                          {keyword}
-                        </button>
-                      ))}
-                    </div>
+                    </button>
                   </div>
-                ))}
-              </div>
+                ) : null}
+              </>
             ) : (
               <p className="empty-copy">후보별로 비교할 수 있는 키워드가 없습니다.</p>
             )}
@@ -296,8 +399,8 @@ export function MayorPledgeAnalysis({
               <div>
                 <h2>{selectedTitle(selectedKeyword)}</h2>
                 <p>
-                  {visiblePledges.length.toLocaleString("ko-KR")}개 공약을
-                  표시합니다.
+                  {renderedPledges.length.toLocaleString("ko-KR")} /{" "}
+                  {visiblePledges.length.toLocaleString("ko-KR")}개 공약을 표시합니다.
                 </p>
               </div>
               {selectedKeyword ? (
@@ -312,43 +415,56 @@ export function MayorPledgeAnalysis({
             </div>
 
             {visiblePledges.length > 0 ? (
-              <div className="mayor-pledge-list">
-                {visiblePledges.map((pledge) => (
-                  <article className="mayor-pledge-row" key={pledge.id}>
-                    <div className="mayor-pledge-copy">
-                      <div className="candidate-meta">
-                        <span>{pledge.candidateName}</span>
-                        <span>{pledge.partyName}</span>
-                        <span>{pledge.regionName}</span>
-                        <span>{pledge.electionName}</span>
+              <>
+                <div className="mayor-pledge-list">
+                  {renderedPledges.map((pledge) => (
+                    <article className="mayor-pledge-row" key={pledge.id}>
+                      <div className="mayor-pledge-copy">
+                        <div className="candidate-meta">
+                          <span>{pledge.candidateName}</span>
+                          <span>{pledge.partyName}</span>
+                          <span>{pledge.regionName}</span>
+                          <span>{pledge.electionName}</span>
+                        </div>
+                        <h3>{pledge.pledgeTitle || pledge.pledgeSummary}</h3>
+                        {pledge.pledgeSummary ? <p>{pledge.pledgeSummary}</p> : null}
+                        <small>{snippetFor(pledge)}</small>
                       </div>
-                      <h3>{pledge.pledgeTitle || pledge.pledgeSummary}</h3>
-                      {pledge.pledgeSummary ? <p>{pledge.pledgeSummary}</p> : null}
-                      <small>{snippetFor(pledge)}</small>
-                    </div>
-                    <div className="mayor-pledge-actions">
-                      {pledge.materialUrl ? (
-                        <a
-                          className="action-button secondary"
-                          href={pledge.materialUrl}
-                          rel="noreferrer"
-                          target="_blank"
+                      <div className="mayor-pledge-actions">
+                        {pledge.materialUrl ? (
+                          <a
+                            className="action-button secondary"
+                            href={pledge.materialUrl}
+                            rel="noreferrer"
+                            target="_blank"
+                          >
+                            원문 보기
+                          </a>
+                        ) : (
+                          <span className="action-button disabled">원문 준비 중</span>
+                        )}
+                        <Link
+                          className="action-button primary"
+                          href={`/candidates/${pledge.candidateId}`}
                         >
-                          원문 보기
-                        </a>
-                      ) : (
-                        <span className="action-button disabled">원문 준비 중</span>
-                      )}
-                      <Link
-                        className="action-button primary"
-                        href={`/candidates/${pledge.candidateId}`}
-                      >
-                        후보자 상세 보기
-                      </Link>
-                    </div>
-                  </article>
-                ))}
-              </div>
+                          후보자 상세 보기
+                        </Link>
+                      </div>
+                    </article>
+                  ))}
+                </div>
+                {hasMorePledges ? (
+                  <div className="incremental-load-more">
+                    <button onClick={showMorePledges} type="button">
+                      공약 더보기
+                      <span>
+                        {renderedPledges.length.toLocaleString("ko-KR")} /{" "}
+                        {visiblePledges.length.toLocaleString("ko-KR")}개
+                      </span>
+                    </button>
+                  </div>
+                ) : null}
+              </>
             ) : (
               <div className="empty-result">
                 <strong>선택한 키워드와 연결된 공약이 없습니다.</strong>

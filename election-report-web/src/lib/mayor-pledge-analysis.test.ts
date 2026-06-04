@@ -46,6 +46,36 @@ describe("mayor pledge analysis", () => {
     expect(
       isMayorCandidate(
         makeCandidate({
+          id: "real-city-mayor",
+          officeName: "구·시·군의 장선거",
+          districtName: "수원시",
+          pledges: []
+        })
+      )
+    ).toBe(true);
+    expect(
+      isMayorCandidate(
+        makeCandidate({
+          id: "real-county-head",
+          officeName: "구·시·군의 장선거",
+          districtName: "고성군",
+          pledges: []
+        })
+      )
+    ).toBe(false);
+    expect(
+      isMayorCandidate(
+        makeCandidate({
+          id: "real-district-head",
+          officeName: "구·시·군의 장선거",
+          districtName: "강남구",
+          pledges: []
+        })
+      )
+    ).toBe(false);
+    expect(
+      isMayorCandidate(
+        makeCandidate({
           id: "metro-mayor",
           officeType: "governor",
           officeName: "부산광역시장",

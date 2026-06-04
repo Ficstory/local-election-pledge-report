@@ -168,7 +168,7 @@ function candidateMaterialUrl(candidate: Candidate) {
   );
 }
 
-export function isMayorCandidate(candidate: Candidate) {
+function matchesLegacyMayorOfficeName(candidate: Candidate) {
   const isLocalExecutive =
     candidate.officeType === "governor" || candidate.officeType === "municipal_mayor";
 
@@ -177,6 +177,41 @@ export function isMayorCandidate(candidate: Candidate) {
     candidate.officeName.includes("시장") &&
     !candidate.officeName.includes("구청장") &&
     !candidate.officeName.includes("군수")
+  );
+}
+
+export function isMayorCandidate(candidate: Candidate) {
+  const officeName = candidate.officeName.normalize("NFKC");
+  const districtName = candidate.districtName?.normalize("NFKC").trim();
+  const regionName = candidate.regionName.normalize("NFKC").trim();
+  const citySuffix = "\uC2DC";
+  const districtSuffix = "\uAD6C";
+  const countySuffix = "\uAD70";
+  const mayorText = "\uC2DC\uC7A5";
+  const districtHeadText = "\uAD6C\uCCAD\uC7A5";
+  const countyHeadText = "\uAD70\uC218";
+
+  if (candidate.officeType === "governor") {
+    return matchesLegacyMayorOfficeName(candidate) || regionName.endsWith(citySuffix);
+  }
+
+  if (candidate.officeType !== "municipal_mayor") {
+    return false;
+  }
+
+  if (
+    officeName.includes(districtHeadText) ||
+    officeName.includes(countyHeadText) ||
+    districtName?.endsWith(districtSuffix) ||
+    districtName?.endsWith(countySuffix)
+  ) {
+    return false;
+  }
+
+  return (
+    matchesLegacyMayorOfficeName(candidate) ||
+    officeName.includes(mayorText) ||
+    Boolean(districtName?.endsWith(citySuffix))
   );
 }
 

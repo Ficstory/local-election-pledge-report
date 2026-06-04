@@ -888,6 +888,42 @@ dt {
   outline: none;
 }
 
+.incremental-load-more {
+  display: flex;
+  justify-content: center;
+  padding-top: 8px;
+}
+
+.incremental-load-more button {
+  display: inline-flex;
+  min-height: 44px;
+  align-items: center;
+  justify-content: center;
+  flex-wrap: wrap;
+  gap: 8px 10px;
+  border: 1px solid rgba(35, 87, 216, 0.2);
+  border-radius: 8px;
+  background: #ffffff;
+  color: var(--primary);
+  padding: 0 16px;
+  font-size: 14px;
+  font-weight: 900;
+  cursor: pointer;
+}
+
+.incremental-load-more button:hover,
+.incremental-load-more button:focus-visible {
+  border-color: var(--primary);
+  background: #f3f6ff;
+  outline: none;
+}
+
+.incremental-load-more span {
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 800;
+}
+
 .policy-category-strip {
   box-shadow: none;
 }
