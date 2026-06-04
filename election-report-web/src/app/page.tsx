@@ -2,38 +2,36 @@ import Link from "next/link";
 
 import { MayorPledgeAnalysis } from "./MayorPledgeAnalysis";
 import {
+  type ElectionCandidateOption,
   type CandidateListFilters,
-  listElectionCandidatesByFilters,
-  listElectionCandidatePage
+  listElectionCandidateOptionsByFilters,
+  listElectionCandidatesByFilters
 } from "../lib/election-db";
 import { getElectionSummary, officeLabels } from "../lib/election-stats";
 import {
-  analyzeMayorPledges,
-  isMayorCandidate,
-  type MayorPledgeFilter
-} from "../lib/mayor-pledge-analysis";
+  classifyEducationCandidate,
+  educationOrientationOptions,
+  filterEducationCandidatesByOrientation,
+  type EducationOrientationId,
+  type EducationOrientationProfile
+} from "../lib/education-orientation";
+import { type MayorPledgeFilter } from "../lib/mayor-pledge-analysis";
+import { buildExecutiveAnalysisPath } from "../lib/executive-analysis-api";
+import {
+  electionTabs,
+  executiveAnalysisCopyByTab,
+  isExecutiveElectionTab,
+  officeTypeForElectionTab,
+  parseElectionTab,
+  type ElectionTabId
+} from "../lib/election-tabs";
+import {
+  CANDIDATE_LIST_PAGE_SIZE,
+  normalizeCandidatePage
+} from "../lib/candidate-pagination";
 import type { Candidate } from "../types/election";
 
 export const dynamic = "force-dynamic";
-
-type ElectionTabId = "education" | "mayor";
-
-const electionTabs: Array<{
-  id: ElectionTabId;
-  label: string;
-  description: string;
-}> = [
-  {
-    id: "education",
-    label: "교육감",
-    description: officeLabels.education_superintendent
-  },
-  {
-    id: "mayor",
-    label: "시장",
-    description: "시장 후보"
-  }
-];
 
 type HomeProps = {
   searchParams: Promise<Record<string, string | string[] | undefined>>;
@@ -52,10 +50,14 @@ function parsePage(value: string | undefined) {
   return Number.isInteger(page) && page > 0 ? page : 1;
 }
 
-function parseElectionTab(value: string | undefined): ElectionTabId {
-  return electionTabs.some((tab) => tab.id === value)
-    ? (value as ElectionTabId)
-    : "education";
+function parseEducationOrientation(
+  value: string | undefined
+): EducationOrientationId | undefined {
+  const orientation = value?.trim();
+
+  return educationOrientationOptions.some((option) => option.id === orientation)
+    ? (orientation as EducationOrientationId)
+    : undefined;
 }
 
 function buildPageHref(
@@ -66,7 +68,10 @@ function buildPageHref(
   const nextParams = new URLSearchParams();
   nextParams.set("election", activeTab);
 
-  for (const key of ["q", "region", "party"]) {
+  const filterKeys =
+    activeTab === "education" ? ["q", "region", "orientation"] : ["q", "region", "party"];
+
+  for (const key of filterKeys) {
     const value = singleParam(params, key)?.trim();
 
     if (value) {
@@ -93,7 +98,9 @@ function candidateMaterialUrl(candidate: Candidate) {
   );
 }
 
-function candidateLocation(candidate: Candidate) {
+function candidateLocation(
+  candidate: Pick<Candidate, "districtName" | "regionName">
+) {
   return candidate.districtName && candidate.districtName !== candidate.regionName
     ? `${candidate.regionName} ${candidate.districtName}`
     : candidate.regionName;
@@ -115,7 +122,7 @@ function uniqueSorted(values: Array<string | undefined>) {
 }
 
 function buildMayorOptions(
-  mayorCandidates: Candidate[],
+  mayorCandidates: ElectionCandidateOption[],
   filters: MayorPledgeFilter
 ) {
   const regionCandidates = mayorCandidates.filter(
@@ -137,6 +144,25 @@ function buildMayorOptions(
       }))
       .sort((left, right) => left.label.localeCompare(right.label, "ko"))
   };
+}
+
+function educationProfileEvidence(profile: EducationOrientationProfile) {
+  const evidence =
+    profile.orientation.id === "progressive"
+      ? profile.evidence.progressive
+      : profile.evidence.conservative;
+
+  return evidence
+    .slice(0, 3)
+    .map((item) => item.keyword)
+    .join(", ");
+}
+
+function educationProfilePolicyAxes(profile: EducationOrientationProfile) {
+  return profile.policyAxes
+    .slice(0, 2)
+    .map((axis) => axis.label)
+    .join(", ");
 }
 
 function ElectionTypeTabs({ activeTab }: { activeTab: ElectionTabId }) {
@@ -161,66 +187,82 @@ export default async function Home({ searchParams }: HomeProps) {
   const params = await searchParams;
   const activeTab = parseElectionTab(singleParam(params, "election"));
 
-  if (activeTab === "mayor") {
-    const executiveCandidateGroups = await Promise.all([
-      listElectionCandidatesByFilters({ officeType: "governor" }),
-      listElectionCandidatesByFilters({ officeType: "municipal_mayor" })
-    ]);
-    const mayorCandidates = executiveCandidateGroups
-      .flat()
-      .filter(isMayorCandidate);
-    const mayorFilters: MayorPledgeFilter = {
+  if (isExecutiveElectionTab(activeTab)) {
+    const officeType = officeTypeForElectionTab(activeTab);
+    const executiveCandidates = await listElectionCandidateOptionsByFilters({
+      officeType
+    });
+    const executiveFilters: MayorPledgeFilter = {
       candidateId: singleParam(params, "candidate")?.trim() || undefined,
       partyName: singleParam(params, "party")?.trim() || undefined,
       query: singleParam(params, "q")?.trim() || undefined,
       regionName: singleParam(params, "region")?.trim() || undefined
     };
-    const mayorAnalysis = analyzeMayorPledges(mayorCandidates, mayorFilters);
+    const analysisUrl = buildExecutiveAnalysisPath({
+      electionValue: activeTab,
+      filters: executiveFilters
+    });
 
     return (
       <main className="page-shell mayor-page">
         <ElectionTypeTabs activeTab={activeTab} />
         <MayorPledgeAnalysis
-          analysis={{
-            candidateKeywords: mayorAnalysis.candidateKeywords,
-            keywords: mayorAnalysis.keywords,
-            pledgeItems: mayorAnalysis.pledgeItems,
-            policyCategories: mayorAnalysis.policyCategories
-          }}
-          filters={mayorFilters}
-          options={buildMayorOptions(mayorCandidates, mayorFilters)}
+          analysisUrl={analysisUrl}
+          copy={executiveAnalysisCopyByTab[activeTab]}
+          electionValue={activeTab}
+          filters={executiveFilters}
+          options={buildMayorOptions(executiveCandidates, executiveFilters)}
         />
       </main>
     );
   }
 
+  const orientationId = parseEducationOrientation(singleParam(params, "orientation"));
   const filters: CandidateListFilters = {
     officeType: "education_superintendent",
-    partyName: singleParam(params, "party")?.trim() || undefined,
     query: singleParam(params, "q")?.trim() || undefined,
     regionName: singleParam(params, "region")?.trim() || undefined
   };
   const page = parsePage(singleParam(params, "page"));
-  const result = await listElectionCandidatePage({
-    filters,
+  const [baseEducationCandidates, allEducationCandidates] = await Promise.all([
+    listElectionCandidatesByFilters(filters),
+    listElectionCandidatesByFilters({ officeType: "education_superintendent" })
+  ]);
+  const orientationFilteredCandidates = filterEducationCandidatesByOrientation(
+    baseEducationCandidates,
+    orientationId
+  );
+  const pagination = normalizeCandidatePage({
     page,
-    pageSize: 50
+    pageSize: CANDIDATE_LIST_PAGE_SIZE,
+    totalCount: orientationFilteredCandidates.length
   });
-  const { candidates, pagination } = result;
-  const summary = getElectionSummary(result.summaryCandidates);
+  const candidates = orientationFilteredCandidates.slice(
+    (pagination.page - 1) * pagination.pageSize,
+    pagination.page * pagination.pageSize
+  );
+  const candidateProfiles = new Map(
+    orientationFilteredCandidates.map((candidate) => [
+      candidate.id,
+      classifyEducationCandidate(candidate)
+    ])
+  );
+  const summary = getElectionSummary(orientationFilteredCandidates);
   const hasActiveFilters = Boolean(
-    filters.query || filters.regionName || filters.partyName
+    filters.query || filters.regionName || orientationId
   );
   const educationOptions = {
     regions: uniqueSorted(
-      result.summaryCandidates.map((candidate) => candidate.regionName)
-    ),
-    parties: uniqueSorted(result.summaryCandidates.map((candidate) => candidate.partyName))
+      allEducationCandidates.map((candidate) => candidate.regionName)
+    )
   };
+  const selectedOrientation = orientationId
+    ? educationOrientationOptions.find((option) => option.id === orientationId)
+    : undefined;
   const selectedFilters = [
     officeLabels.education_superintendent,
     filters.regionName,
-    filters.partyName
+    selectedOrientation?.label
   ].filter((filter): filter is string => Boolean(filter));
 
   return (
@@ -231,8 +273,8 @@ export default async function Home({ searchParams }: HomeProps) {
           <p className="eyebrow">2026 전국동시지방선거</p>
           <h1>교육감 후보 공약 검색</h1>
           <p className="lead">
-            지역, 후보자 이름, 정당으로 교육감 후보자의 공약과 원문 자료를
-            확인하세요.
+            지역, 후보자 이름, 성향으로 교육감 후보자의 공약과 원문 자료를
+            확인하세요. 성향은 공약 원문 기반 자동 추정값입니다.
           </p>
         </div>
       </section>
@@ -244,7 +286,7 @@ export default async function Home({ searchParams }: HomeProps) {
         <div className="search-panel-heading">
           <div>
             <h2 id="candidate-search-title">후보자 찾기</h2>
-            <p>이름, 지역, 정당을 조합해 원하는 후보자를 찾아보세요.</p>
+            <p>이름, 지역, 성향을 조합해 원하는 후보자를 찾아보세요.</p>
           </div>
         </div>
         <form className="filter-form">
@@ -255,7 +297,7 @@ export default async function Home({ searchParams }: HomeProps) {
             <input
               defaultValue={filters.query ?? ""}
               name="q"
-              placeholder="후보자 이름, 정당, 지역"
+              placeholder="후보자 이름, 지역"
               type="search"
             />
           </label>
@@ -271,12 +313,12 @@ export default async function Home({ searchParams }: HomeProps) {
             </select>
           </label>
           <label>
-            <span>정당</span>
-            <select defaultValue={filters.partyName ?? ""} name="party">
+            <span>성향</span>
+            <select defaultValue={orientationId ?? ""} name="orientation">
               <option value="">전체</option>
-              {educationOptions.parties.map((party) => (
-                <option key={party} value={party}>
-                  {party}
+              {educationOrientationOptions.map((orientation) => (
+                <option key={orientation.id} value={orientation.id}>
+                  {orientation.label}
                 </option>
               ))}
             </select>
@@ -292,7 +334,7 @@ export default async function Home({ searchParams }: HomeProps) {
       {hasActiveFilters ? (
         <section className="result-summary" aria-label="검색 결과 요약">
           <strong>{resultSummaryTitle(filters)}</strong>
-          <span>{pagination.totalCount.toLocaleString("ko-KR")}명</span>
+          <span>{orientationFilteredCandidates.length.toLocaleString("ko-KR")}명</span>
           <span>공약 {summary.totalPledges.toLocaleString("ko-KR")}개</span>
           <span>
             {summary.collectedMaterials > 0 ? "원문 자료 있음" : "원문 자료 없음"}
@@ -313,7 +355,7 @@ export default async function Home({ searchParams }: HomeProps) {
             </p>
           </div>
           <span>
-            {pagination.totalCount.toLocaleString("ko-KR")}명 중{" "}
+            {orientationFilteredCandidates.length.toLocaleString("ko-KR")}명 중{" "}
             {candidates.length.toLocaleString("ko-KR")}명 표시
           </span>
         </div>
@@ -322,6 +364,11 @@ export default async function Home({ searchParams }: HomeProps) {
           <div className="candidate-list">
             {candidates.map((candidate) => {
               const materialUrl = candidateMaterialUrl(candidate);
+              const profile =
+                candidateProfiles.get(candidate.id) ??
+                classifyEducationCandidate(candidate);
+              const evidence = educationProfileEvidence(profile);
+              const policyAxes = educationProfilePolicyAxes(profile);
 
               return (
                 <article className="candidate-card" key={candidate.id}>
@@ -338,11 +385,17 @@ export default async function Home({ searchParams }: HomeProps) {
                           기호 {candidate.ballotNumber}
                         </span>
                       ) : null}
+                      <span
+                        className={`orientation-chip ${profile.orientation.colorClass}`}
+                        title={`진보 ${profile.progressiveScore}점 / 보수 ${profile.conservativeScore}점`}
+                      >
+                        {profile.orientation.label}
+                      </span>
                     </div>
                     <div className="candidate-meta">
                       <span>{candidateLocation(candidate)}</span>
                       <span>{officeLabels[candidate.officeType]}</span>
-                      <span>{candidate.partyName}</span>
+                      <span>정당 추천 없음</span>
                     </div>
                     <div className="candidate-submeta">
                       <span>{candidate.officeName}</span>
@@ -352,6 +405,10 @@ export default async function Home({ searchParams }: HomeProps) {
                       <span>
                         {materialUrl ? "원문 자료 있음" : "원문 자료 없음"}
                       </span>
+                    </div>
+                    <div className="candidate-orientation-detail">
+                      {policyAxes ? <span>정책축 {policyAxes}</span> : null}
+                      {evidence ? <span>근거 {evidence}</span> : null}
                     </div>
                   </div>
                   <div className="candidate-actions">
@@ -387,7 +444,7 @@ export default async function Home({ searchParams }: HomeProps) {
         ) : (
           <div className="empty-result">
             <strong>조건에 맞는 후보자가 없습니다.</strong>
-            <p>검색어를 줄이거나 지역/정당 조건을 변경해보세요.</p>
+            <p>검색어를 줄이거나 지역/성향 조건을 변경해보세요.</p>
           </div>
         )}
 

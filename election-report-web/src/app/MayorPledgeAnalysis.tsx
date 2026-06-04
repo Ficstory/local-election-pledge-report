@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState, type CSSProperties } from "react";
+import { useEffect, useMemo, useState, type CSSProperties } from "react";
 import Link from "next/link";
 
 import {
@@ -10,12 +10,12 @@ import {
 } from "../lib/incremental-rendering";
 import {
   tokenizePledgeText,
-  type CandidateKeywordSummary,
   type MayorKeyword,
+  type MayorPledgeClientAnalysis,
   type MayorPledgeFilter,
-  type MayorPledgeItem,
-  type PolicyCategorySummary
+  type MayorPledgeItem
 } from "../lib/mayor-pledge-analysis";
+import type { ElectionAnalysisCopy } from "../lib/election-tabs";
 
 type CandidateOption = {
   id: string;
@@ -25,18 +25,23 @@ type CandidateOption = {
 };
 
 type MayorPledgeAnalysisProps = {
+  analysis?: MayorPledgeClientAnalysis;
+  analysisUrl?: string;
+  copy?: ElectionAnalysisCopy;
+  electionValue?: string;
   filters: MayorPledgeFilter;
   options: {
     candidates: CandidateOption[];
     parties: string[];
     regions: string[];
   };
-  analysis: {
-    candidateKeywords: CandidateKeywordSummary[];
-    keywords: MayorKeyword[];
-    pledgeItems: MayorPledgeItem[];
-    policyCategories: PolicyCategorySummary[];
-  };
+};
+
+const emptyAnalysis: MayorPledgeClientAnalysis = {
+  candidateKeywords: [],
+  keywords: [],
+  pledgeItems: [],
+  policyCategories: []
 };
 
 type WordStyle = CSSProperties & {
@@ -48,13 +53,37 @@ type RenderWindow = {
   scope: string;
 };
 
+type LoadedAnalysis = {
+  analysis: MayorPledgeClientAnalysis;
+  analysisUrl: string;
+};
+
+type AnalysisError = {
+  analysisUrl?: string;
+  message: string;
+};
+
 const CANDIDATE_KEYWORD_INITIAL_LIMIT = 12;
 const CANDIDATE_KEYWORD_STEP = 12;
-const PLEDGE_INITIAL_LIMIT = 30;
-const PLEDGE_STEP = 30;
+const PLEDGE_INITIAL_LIMIT = 5;
+const PLEDGE_STEP = 5;
+const TOP_KEYWORD_RANK_LIMIT = 10;
+
+const defaultCopy: ElectionAnalysisCopy = {
+  emptyDescription: "지역이나 후보자 조건을 변경해보세요.",
+  emptyTitle: "조건에 맞는 시장 후보 공약이 없습니다.",
+  eyebrow: "시장 후보 공약",
+  filterDescription:
+    "후보자를 선택하지 않으면 조건에 맞는 전체 시장 후보 공약을 합산합니다.",
+  lead: "지역별 시장 후보자의 주요 공약 키워드와 원문을 확인하세요.",
+  title: "시장 공약 분석"
+};
 
 function keywordMatchesPledge(pledge: MayorPledgeItem, keyword: string) {
-  return tokenizePledgeText(pledge.pledgeText).includes(keyword);
+  return (
+    pledge.keywords?.includes(keyword) ??
+    tokenizePledgeText(pledge.pledgeText).includes(keyword)
+  );
 }
 
 function snippetFor(pledge: MayorPledgeItem) {
@@ -82,10 +111,15 @@ function scopedLimit(window: RenderWindow, scope: string, initialLimit: number) 
 }
 
 export function MayorPledgeAnalysis({
-  analysis,
+  analysis: initialAnalysis,
+  analysisUrl,
+  copy = defaultCopy,
+  electionValue = "mayor",
   filters,
   options
 }: MayorPledgeAnalysisProps) {
+  const [loadedAnalysis, setLoadedAnalysis] = useState<LoadedAnalysis>();
+  const [analysisError, setAnalysisError] = useState<AnalysisError>();
   const [selectedKeyword, setSelectedKeyword] = useState<string | null>(null);
   const [candidateKeywordWindow, setCandidateKeywordWindow] = useState<RenderWindow>({
     limit: CANDIDATE_KEYWORD_INITIAL_LIMIT,
@@ -95,7 +129,65 @@ export function MayorPledgeAnalysis({
     limit: PLEDGE_INITIAL_LIMIT,
     scope: ""
   });
-  const topKeywords = analysis.keywords.slice(0, 20);
+  const loadedAnalysisForUrl =
+    initialAnalysis ??
+    (loadedAnalysis && loadedAnalysis.analysisUrl === analysisUrl
+      ? loadedAnalysis.analysis
+      : undefined);
+  const missingAnalysisUrl = !initialAnalysis && !analysisUrl;
+  const analysisErrorMessage = missingAnalysisUrl
+    ? "Missing analysis endpoint."
+    : analysisError && analysisError.analysisUrl === analysisUrl
+      ? analysisError.message
+      : undefined;
+  const analysisState = loadedAnalysisForUrl
+    ? "ready"
+    : analysisErrorMessage
+      ? "error"
+      : "loading";
+  const analysis = loadedAnalysisForUrl ?? emptyAnalysis;
+
+  useEffect(() => {
+    if (initialAnalysis || !analysisUrl) {
+      return;
+    }
+
+    const controller = new AbortController();
+
+    fetch(analysisUrl, {
+      signal: controller.signal
+    })
+      .then(async (response) => {
+        if (!response.ok) {
+          throw new Error(`Analysis request failed: ${response.status}`);
+        }
+
+        return (await response.json()) as {
+          analysis: MayorPledgeClientAnalysis;
+        };
+      })
+      .then((payload) => {
+        setLoadedAnalysis({
+          analysis: payload.analysis,
+          analysisUrl
+        });
+      })
+      .catch((error: unknown) => {
+        if (error instanceof DOMException && error.name === "AbortError") {
+          return;
+        }
+
+        setAnalysisError({
+          analysisUrl,
+          message:
+            error instanceof Error ? error.message : "Analysis request failed."
+        });
+      });
+
+    return () => controller.abort();
+  }, [analysisUrl, initialAnalysis]);
+
+  const topKeywords = analysis.keywords.slice(0, TOP_KEYWORD_RANK_LIMIT);
   const cloudKeywords = analysis.keywords.slice(0, 34);
   const maxCount = cloudKeywords[0]?.count ?? 1;
   const visiblePledges = useMemo(
@@ -183,22 +275,20 @@ export function MayorPledgeAnalysis({
   return (
     <section className="mayor-analysis" aria-labelledby="mayor-analysis-title">
       <div className="mayor-analysis-header">
-        <p className="eyebrow">시장 후보 공약</p>
-        <h1 id="mayor-analysis-title">시장 공약 분석</h1>
-        <p className="lead">
-          지역별 시장 후보자의 주요 공약 키워드와 원문을 확인하세요.
-        </p>
+        <p className="eyebrow">{copy.eyebrow}</p>
+        <h1 id="mayor-analysis-title">{copy.title}</h1>
+        <p className="lead">{copy.lead}</p>
       </div>
 
       <section className="panel filter-panel search-panel">
         <div className="search-panel-heading">
           <div>
             <h2>분석 조건</h2>
-            <p>후보자를 선택하지 않으면 조건에 맞는 전체 시장 후보 공약을 합산합니다.</p>
+            <p>{copy.filterDescription}</p>
           </div>
         </div>
         <form className="filter-form mayor-filter-form">
-          <input name="election" type="hidden" value="mayor" />
+          <input name="election" type="hidden" value={electionValue} />
           <label>
             <span>지역 선택</span>
             <select defaultValue={filters.regionName ?? ""} name="region">
@@ -244,7 +334,10 @@ export function MayorPledgeAnalysis({
           <div className="filter-actions">
             <button type="submit">검색</button>
             {hasFilters || selectedKeyword ? (
-              <Link href="/?election=mayor" onClick={() => setSelectedKeyword(null)}>
+              <Link
+                href={`/?election=${electionValue}`}
+                onClick={() => setSelectedKeyword(null)}
+              >
                 초기화
               </Link>
             ) : null}
@@ -252,10 +345,23 @@ export function MayorPledgeAnalysis({
         </form>
       </section>
 
-      {!hasAnalysisText ? (
+      {analysisState === "loading" ? (
+        <div
+          className="state-panel mayor-analysis-loading"
+          data-analysis-state="loading"
+        >
+          <strong>분석을 불러오는 중입니다.</strong>
+          <p>후보 공약 분석은 초기 화면과 분리해서 불러옵니다.</p>
+        </div>
+      ) : analysisState === "error" ? (
+        <div className="empty-result mayor-empty-state" data-analysis-state="error">
+          <strong>분석을 불러오지 못했습니다.</strong>
+          <p>{analysisErrorMessage ?? "잠시 후 다시 시도해 주세요."}</p>
+        </div>
+      ) : !hasAnalysisText ? (
         <div className="empty-result mayor-empty-state">
-          <strong>조건에 맞는 시장 후보 공약이 없습니다.</strong>
-          <p>지역이나 후보자 조건을 변경해보세요.</p>
+          <strong>{copy.emptyTitle}</strong>
+          <p>{copy.emptyDescription}</p>
         </div>
       ) : (
         <>
@@ -301,9 +407,12 @@ export function MayorPledgeAnalysis({
               )}
             </div>
 
-            <aside className="mayor-keyword-panel" aria-label="주요 키워드 TOP 20">
+            <aside
+              className="mayor-keyword-panel"
+              aria-label={`주요 키워드 TOP ${TOP_KEYWORD_RANK_LIMIT}`}
+            >
               <div className="mayor-section-heading compact">
-                <h2>주요 키워드 TOP 20</h2>
+                <h2>주요 키워드 TOP {TOP_KEYWORD_RANK_LIMIT}</h2>
               </div>
               <div className="keyword-rank-list" role="list">
                 {topKeywords.map((keyword, index) => (

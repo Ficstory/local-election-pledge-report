@@ -1,9 +1,13 @@
 import { describe, expect, it } from "vitest";
+import { performance } from "node:perf_hooks";
 
 import {
   analyzeMayorPledges,
+  classifyPolicyCategories,
+  createKeywordStopwordSet,
   isMayorCandidate,
   normalizeKoreanKeyword,
+  prepareMayorPledgeClientAnalysis,
   tokenizePledgeText
 } from "./mayor-pledge-analysis";
 import type { Candidate } from "../types/election";
@@ -195,5 +199,97 @@ describe("mayor pledge analysis", () => {
     ]);
     expect(analysis.pledgeItems.map((pledge) => pledge.id)).toEqual(["a-1"]);
     expect(analysis.keywords.map((keyword) => keyword.keyword)).toContain("창업");
+  });
+
+  it("reuses a pre-normalized stopword set during tokenization", () => {
+    const stopwords = createKeywordStopwordSet(["candidate custom"]);
+
+    expect(tokenizePledgeText("candidate custom transit housing", stopwords)).toEqual([
+      "transit",
+      "housing"
+    ]);
+  });
+
+  it("stores pledge keywords so aggregate and candidate summaries reuse tokenization", () => {
+    const analysis = analyzeMayorPledges(
+      [
+        makeCandidate({
+          id: "mayor-1",
+          pledges: [
+            {
+              id: "pledge-1",
+              title: "green transit",
+              summary: "green transit transit",
+              category: "transport",
+              details: ["housing support"]
+            }
+          ]
+        })
+      ],
+      {}
+    );
+
+    expect(analysis.pledgeItems[0].keywords).toEqual([
+      "green",
+      "transit",
+      "housing",
+      "support"
+    ]);
+    expect(analysis.keywords.map((keyword) => keyword.keyword)).toContain("transit");
+    expect(analysis.candidateKeywords[0].keywords).toContain("transit");
+  });
+
+  it("compacts mayor analysis before passing it to the client component", () => {
+    const longText = "transit ".repeat(80).trim();
+    const analysis = prepareMayorPledgeClientAnalysis({
+      candidateKeywords: [],
+      keywords: [
+        {
+          candidateCount: 1,
+          count: 100,
+          keyword: "transit",
+          pledgeCount: 1
+        },
+        ...Array.from({ length: 39 }, (_, index) => ({
+          candidateCount: 1,
+          count: 99 - index,
+          keyword: `keyword-${index + 1}`,
+          pledgeCount: 1
+        }))
+      ],
+      pledgeItems: [
+        {
+          candidateId: "candidate-1",
+          candidateName: "Candidate",
+          electionName: "Election",
+          id: "pledge-1",
+          keywords: ["transit", "background"],
+          partyName: "Party",
+          pledgeSummary: "",
+          pledgeText: longText,
+          pledgeTitle: "Long pledge",
+          regionName: "Region"
+        }
+      ],
+      policyCategories: []
+    });
+
+    expect(analysis.keywords).toHaveLength(34);
+    expect(analysis.pledgeItems[0].keywords).toEqual(["transit"]);
+    expect(analysis.pledgeItems[0].pledgeText.length).toBeLessThanOrEqual(173);
+  });
+
+  it("classifies policy categories without per-keyword rule normalization", () => {
+    const keywords = Array.from({ length: 8000 }, (_, index) => ({
+      candidateCount: 1,
+      count: 8000 - index,
+      keyword: `keyword-${index}`,
+      pledgeCount: 1
+    }));
+    const start = performance.now();
+
+    classifyPolicyCategories(keywords);
+
+    expect(performance.now() - start).toBeLessThan(800);
   });
 });

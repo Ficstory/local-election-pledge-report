@@ -8,6 +8,8 @@ import type {
   OfficeType,
   Pledge
 } from "../types/election";
+import { normalizeCandidatePage } from "./candidate-pagination";
+import { parsePledgeContent } from "./pledge-content";
 
 const globalForPrisma = globalThis as unknown as {
   prisma?: PrismaClient;
@@ -57,6 +59,11 @@ export type CandidateListFilters = {
   query?: string;
   regionName?: string;
 };
+
+export type ElectionCandidateOption = Pick<
+  Candidate,
+  "candidateName" | "districtName" | "id" | "partyName" | "regionName"
+>;
 
 export type CandidateListResult = {
   candidates: Candidate[];
@@ -170,29 +177,36 @@ function mapMaterial(materials: DbCandidate["materials"]): CampaignMaterialAnaly
   };
 }
 
-function detailsToLines(details: Prisma.JsonValue): string[] {
+function detailsContent(details: Prisma.JsonValue | null | undefined) {
   if (
     details &&
     typeof details === "object" &&
     !Array.isArray(details) &&
     typeof details.content === "string"
   ) {
-    return details.content
-      .split(/\r?\n/)
-      .map((line) => line.trim())
-      .filter(Boolean);
+    return details.content;
   }
 
-  return [];
+  return "";
+}
+
+function detailsToLines(details: Prisma.JsonValue | null | undefined): string[] {
+  return detailsContent(details)
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .filter(Boolean);
 }
 
 function mapPledge(pledge: DbCandidate["pledges"][number]): Pledge {
+  const content = detailsContent(pledge.details);
+
   return {
     id: pledge.id,
     title: pledge.title,
     summary: pledge.summary ?? "",
     category: pledge.category ?? "미분류",
-    details: detailsToLines(pledge.details)
+    details: detailsToLines(pledge.details),
+    detailSections: parsePledgeContent(content)
   };
 }
 
@@ -307,6 +321,50 @@ export async function listElectionCandidatesByFilters(
   return rows.map(mapCandidate).sort(sortCandidates);
 }
 
+export async function listElectionCandidateOptionsByFilters(
+  filters: CandidateListFilters
+): Promise<ElectionCandidateOption[]> {
+  const electionId = process.env.NEXT_PUBLIC_DEFAULT_SG_ID?.trim();
+  const where = buildCandidateWhere(electionId, filters);
+  const rows = await prisma.candidate.findMany({
+    where,
+    orderBy: [
+      { electionType: { sgTypecode: "asc" } },
+      { region: { name: "asc" } },
+      { district: { name: "asc" } },
+      { ballotNumber: "asc" },
+      { name: "asc" }
+    ],
+    select: {
+      district: {
+        select: {
+          name: true
+        }
+      },
+      id: true,
+      name: true,
+      party: {
+        select: {
+          name: true
+        }
+      },
+      region: {
+        select: {
+          name: true
+        }
+      }
+    }
+  });
+
+  return rows.map((candidate) => ({
+    candidateName: candidate.name,
+    districtName: candidate.district?.name,
+    id: candidate.id,
+    partyName: candidate.party?.name ?? "무소속",
+    regionName: candidate.region?.name ?? "미분류"
+  }));
+}
+
 function buildCandidateWhere(
   electionId: string | undefined,
   filters: CandidateListFilters
@@ -387,11 +445,8 @@ export async function listElectionCandidatePage({
 }): Promise<CandidateListResult> {
   const electionId = process.env.NEXT_PUBLIC_DEFAULT_SG_ID?.trim();
   const where = buildCandidateWhere(electionId, filters);
-  const safePage = Math.max(1, page);
-  const safePageSize = Math.min(100, Math.max(10, pageSize));
   const totalCount = await prisma.candidate.count({ where });
-  const totalPages = Math.max(1, Math.ceil(totalCount / safePageSize));
-  const currentPage = Math.min(safePage, totalPages);
+  const pagination = normalizeCandidatePage({ page, pageSize, totalCount });
   const rows = await prisma.candidate.findMany({
     where,
     include: {
@@ -418,8 +473,8 @@ export async function listElectionCandidatePage({
       { ballotNumber: "asc" },
       { name: "asc" }
     ],
-    skip: (currentPage - 1) * safePageSize,
-    take: safePageSize
+    skip: (pagination.page - 1) * pagination.pageSize,
+    take: pagination.pageSize
   });
   const summaryRows = await prisma.candidate.findMany({
     where,
@@ -476,10 +531,10 @@ export async function listElectionCandidatePage({
     candidates: rows.map(mapCandidate),
     filters,
     pagination: {
-      page: currentPage,
-      pageSize: safePageSize,
+      page: pagination.page,
+      pageSize: pagination.pageSize,
       totalCount,
-      totalPages
+      totalPages: pagination.totalPages
     },
     options: {
       parties: parties.map((party) => party.name),
