@@ -37,6 +37,9 @@ election-report-web/storage/materials/**
 !election-report-web/storage/materials/
 !election-report-web/storage/materials/.gitkeep
 
+# local data handoff exports
+handoff/
+
 # system files
 .DS_Store
 Thumbs.db
