@@ -1,18 +1,18 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 
-import { getElectionCandidateById } from "../../../lib/election-db";
 import { officeLabels } from "../../../lib/election-stats";
-import type { Candidate } from "../../../types/election";
+import { getElectionCandidateById } from "../../../lib/election-db";
+import type { Pledge } from "../../../types/election";
+import { CandidateMaterials } from "./CandidateMaterials";
+import { CandidateSourceInfo } from "./CandidateSourceInfo";
 
 export const dynamic = "force-dynamic";
 
-type CandidateMaterial = NonNullable<Candidate["material"]["materials"]>[number];
-
-const materialTypeLabels: Record<string, string> = {
-  ELECTION_BULLETIN: "후보자 공보 원문",
-  PLEDGE_BOOK: "선거공약서 원문",
-  TOP_FIVE_PLEDGES: "5대 공약 원문"
+const materialStatusLabels = {
+  pending: "수집 전",
+  collected: "수집 완료",
+  analyzed: "분석 완료"
 };
 
 type CandidatePageProps = {
@@ -21,31 +21,74 @@ type CandidatePageProps = {
   }>;
 };
 
-function candidateMaterialUrl(candidate: Candidate) {
-  return (
-    candidate.material.pdfUrl ??
-    candidate.material.materials?.find((material) => material.sourceUrl)?.sourceUrl
+function firstSectionText(pledge: Pledge) {
+  for (const section of pledge.detailSections ?? []) {
+    const firstItem = section.items[0];
+
+    if (firstItem) {
+      return firstItem.text;
+    }
+
+    const firstLooseLine = section.looseLines[0];
+
+    if (firstLooseLine) {
+      return firstLooseLine;
+    }
+  }
+
+  return pledge.summary;
+}
+
+function PledgeDetailContent({ pledge }: { pledge: Pledge }) {
+  const sections = (pledge.detailSections ?? []).filter(
+    (section) => section.items.length > 0 || section.looseLines.length > 0
   );
-}
 
-function candidateLocation(candidate: Candidate) {
-  return candidate.districtName && candidate.districtName !== candidate.regionName
-    ? `${candidate.regionName} ${candidate.districtName}`
-    : candidate.regionName;
-}
+  if (sections.length === 0) {
+    return (
+      <ul className="pledge-raw-lines">
+        {pledge.details.map((detail, detailIndex) => (
+          <li key={`${detail}-${detailIndex}`}>{detail}</li>
+        ))}
+      </ul>
+    );
+  }
 
-function hasVisibleBallotNumber(ballotNumber: string) {
-  return ballotNumber.trim() !== "" && ballotNumber !== "없음";
-}
-
-function hasSourceUrl(
-  material: CandidateMaterial
-): material is CandidateMaterial & { sourceUrl: string } {
-  return Boolean(material.sourceUrl);
-}
-
-function materialTypeLabel(materialType: string) {
-  return materialTypeLabels[materialType] ?? "원문 자료";
+  return (
+    <div className="pledge-sections">
+      {sections.map((section, sectionIndex) => (
+        <section
+          className="pledge-section"
+          key={`${section.title}-${sectionIndex}`}
+        >
+          <h4>{section.title}</h4>
+          {section.looseLines.length > 0 ? (
+            <ul className="pledge-loose-lines">
+              {section.looseLines.map((line, lineIndex) => (
+                <li key={`${line}-${lineIndex}`}>{line}</li>
+              ))}
+            </ul>
+          ) : null}
+          {section.items.length > 0 ? (
+            <ul className="pledge-section-items">
+              {section.items.map((item, itemIndex) => (
+                <li key={`${item.text}-${itemIndex}`}>
+                  <p className="pledge-section-item-text">{item.text}</p>
+                  {item.details.length > 0 ? (
+                    <ul className="pledge-detail-lines">
+                      {item.details.map((detail, detailIndex) => (
+                        <li key={`${detail}-${detailIndex}`}>{detail}</li>
+                      ))}
+                    </ul>
+                  ) : null}
+                </li>
+              ))}
+            </ul>
+          ) : null}
+        </section>
+      ))}
+    </div>
+  );
 }
 
 export default async function CandidatePage({ params }: CandidatePageProps) {
@@ -56,49 +99,32 @@ export default async function CandidatePage({ params }: CandidatePageProps) {
     notFound();
   }
 
-  const materialUrl = candidateMaterialUrl(candidate);
-  const visibleMaterials = (candidate.material.materials ?? []).filter(hasSourceUrl);
-
   return (
     <main className="page-shell detail-page">
       <Link className="back-link" href="/">
-        후보자 검색으로 돌아가기
+        후보자 목록
       </Link>
 
-      <section className="detail-header public-detail-header">
+      <section className="detail-header">
         <div>
           <p className="eyebrow">
-            {officeLabels[candidate.officeType]} · {candidateLocation(candidate)}
+            {officeLabels[candidate.officeType]} · {candidate.regionName}
           </p>
           <h1>{candidate.candidateName}</h1>
           <p className="lead">
-            {candidate.partyName} · {candidate.officeName}
-            {hasVisibleBallotNumber(candidate.ballotNumber)
-              ? ` · 기호 ${candidate.ballotNumber}`
-              : ""}
+            {candidate.officeName} / {candidate.partyName} / 기호{" "}
+            {candidate.ballotNumber}
           </p>
         </div>
-        <div className="detail-actions">
-          <a className="action-button primary" href="#pledges">
-            공약 보기
-          </a>
-          {materialUrl ? (
-            <a
-              className="action-button secondary"
-              href={materialUrl}
-              rel="noreferrer"
-              target="_blank"
-            >
-              원문 보기
-            </a>
-          ) : null}
-        </div>
+        <span className={`status-pill ${candidate.material.status}`}>
+          {materialStatusLabels[candidate.material.status]}
+        </span>
       </section>
 
       <section className="content-grid detail-grid">
         <article className="panel">
           <div className="panel-heading">
-            <h2>후보자 정보</h2>
+            <h2>기본 정보</h2>
           </div>
           <dl className="info-list">
             <div>
@@ -106,16 +132,8 @@ export default async function CandidatePage({ params }: CandidatePageProps) {
               <dd>{candidate.electionName}</dd>
             </div>
             <div>
-              <dt>지역</dt>
-              <dd>{candidateLocation(candidate)}</dd>
-            </div>
-            <div>
-              <dt>선거 종류</dt>
-              <dd>{officeLabels[candidate.officeType]}</dd>
-            </div>
-            <div>
-              <dt>정당</dt>
-              <dd>{candidate.partyName}</dd>
+              <dt>선거 ID</dt>
+              <dd>{candidate.electionId}</dd>
             </div>
             <div>
               <dt>연령/성별</dt>
@@ -147,68 +165,69 @@ export default async function CandidatePage({ params }: CandidatePageProps) {
           </dl>
         </article>
 
-        <article className="panel source-panel">
+        <article className="panel">
           <div className="panel-heading">
-            <div>
-              <h2>원문 자료</h2>
-              <p>선거관리위원회에 공개된 후보자 자료를 새 창에서 확인합니다.</p>
-            </div>
-            <span>{visibleMaterials.length.toLocaleString("ko-KR")}개</span>
+            <h2>공보물 분석</h2>
           </div>
-          {visibleMaterials.length > 0 ? (
-            <div className="material-link-list">
-              {visibleMaterials.map((material) => (
-                <div className="material-link-item" key={material.id}>
-                  <div>
-                    <strong>{material.title}</strong>
-                    <span>{materialTypeLabel(material.materialType)}</span>
-                  </div>
-                  <a
-                    className="action-button secondary"
-                    href={material.sourceUrl}
-                    rel="noreferrer"
-                    target="_blank"
-                  >
-                    원문 열기
-                  </a>
-                </div>
-              ))}
+          <dl className="info-list">
+            <div>
+              <dt>페이지</dt>
+              <dd>{candidate.material.pageCount ?? "수집 후 기록"}</dd>
             </div>
-          ) : (
-            <p className="empty-copy">현재 연결된 원문 자료가 없습니다.</p>
-          )}
+            <div>
+              <dt>주요 색상</dt>
+              <dd className="swatch-row">
+                {candidate.material.dominantColors.length > 0
+                  ? candidate.material.dominantColors.map((color) => (
+                      <span
+                        aria-label={color}
+                        className="color-swatch"
+                        key={color}
+                        style={{ background: color }}
+                      />
+                    ))
+                  : "수집 후 기록"}
+              </dd>
+            </div>
+            <div>
+              <dt>폰트</dt>
+              <dd>{candidate.material.fontNotes}</dd>
+            </div>
+            <div>
+              <dt>구성</dt>
+              <dd>{candidate.material.layoutNotes}</dd>
+            </div>
+          </dl>
         </article>
       </section>
 
-      <section className="panel" id="pledges">
+      <CandidateMaterials materials={candidate.material.materials} />
+
+      <section className="panel">
         <div className="panel-heading">
           <h2>주요 공약</h2>
           <span>{candidate.pledges.length.toLocaleString("ko-KR")}개</span>
         </div>
-        {candidate.pledges.length > 0 ? (
-          <div className="pledge-list">
-            {candidate.pledges.map((pledge) => (
+        <div className="pledge-list">
+          {candidate.pledges.map((pledge) => {
+            const preview = firstSectionText(pledge);
+
+            return (
               <article className="pledge-item" key={pledge.id}>
                 <span>{pledge.category}</span>
                 <h3>{pledge.title}</h3>
-                <p>{pledge.summary}</p>
-                {pledge.details.length > 0 ? (
-                  <details>
-                    <summary>공약 원문 보기</summary>
-                    <ul>
-                      {pledge.details.map((detail) => (
-                        <li key={detail}>{detail}</li>
-                      ))}
-                    </ul>
-                  </details>
-                ) : null}
+                {preview ? <p>{preview}</p> : null}
+                <details>
+                  <summary>공약 원문 보기</summary>
+                  <PledgeDetailContent pledge={pledge} />
+                </details>
               </article>
-            ))}
-          </div>
-        ) : (
-          <p className="empty-copy">등록된 주요 공약이 없습니다.</p>
-        )}
+            );
+          })}
+        </div>
       </section>
+
+      <CandidateSourceInfo source={candidate.source} />
     </main>
   );
 }

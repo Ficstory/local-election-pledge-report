@@ -1,3 +1,5 @@
+import type { PledgeContentSection } from "../lib/pledge-content";
+
 export type OfficeType =
   | "governor"
   | "municipal_mayor"
@@ -33,6 +35,7 @@ export type Pledge = {
   summary: string;
   category: string;
   details: string[];
+  detailSections?: PledgeContentSection[];
 };
 
 export type CampaignMaterialAnalysis = {

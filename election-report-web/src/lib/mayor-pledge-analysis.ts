@@ -18,6 +18,8 @@ export type MayorPledgeItem = {
   pledgeTitle: string;
   pledgeSummary: string;
   pledgeText: string;
+  keywords: string[];
+  keywordTokens?: string[];
   materialUrl?: string;
 };
 
@@ -49,6 +51,14 @@ export type MayorPledgeAnalysis = {
   candidateKeywords: CandidateKeywordSummary[];
   policyCategories: PolicyCategorySummary[];
 };
+
+export type MayorPledgeClientAnalysis = Pick<
+  MayorPledgeAnalysis,
+  "candidateKeywords" | "keywords" | "pledgeItems" | "policyCategories"
+>;
+
+export const MAYOR_CLIENT_KEYWORD_LIMIT = 34;
+export const MAYOR_CLIENT_PLEDGE_TEXT_LIMIT = 170;
 
 export const commonKeywordStopwords = [
   "추진",
@@ -168,7 +178,7 @@ function candidateMaterialUrl(candidate: Candidate) {
   );
 }
 
-export function isMayorCandidate(candidate: Candidate) {
+function matchesLegacyMayorOfficeName(candidate: Candidate) {
   const isLocalExecutive =
     candidate.officeType === "governor" || candidate.officeType === "municipal_mayor";
 
@@ -177,6 +187,41 @@ export function isMayorCandidate(candidate: Candidate) {
     candidate.officeName.includes("시장") &&
     !candidate.officeName.includes("구청장") &&
     !candidate.officeName.includes("군수")
+  );
+}
+
+export function isMayorCandidate(candidate: Candidate) {
+  const officeName = candidate.officeName.normalize("NFKC");
+  const districtName = candidate.districtName?.normalize("NFKC").trim();
+  const regionName = candidate.regionName.normalize("NFKC").trim();
+  const citySuffix = "\uC2DC";
+  const districtSuffix = "\uAD6C";
+  const countySuffix = "\uAD70";
+  const mayorText = "\uC2DC\uC7A5";
+  const districtHeadText = "\uAD6C\uCCAD\uC7A5";
+  const countyHeadText = "\uAD70\uC218";
+
+  if (candidate.officeType === "governor") {
+    return matchesLegacyMayorOfficeName(candidate) || regionName.endsWith(citySuffix);
+  }
+
+  if (candidate.officeType !== "municipal_mayor") {
+    return false;
+  }
+
+  if (
+    officeName.includes(districtHeadText) ||
+    officeName.includes(countyHeadText) ||
+    districtName?.endsWith(districtSuffix) ||
+    districtName?.endsWith(countySuffix)
+  ) {
+    return false;
+  }
+
+  return (
+    matchesLegacyMayorOfficeName(candidate) ||
+    officeName.includes(mayorText) ||
+    Boolean(districtName?.endsWith(citySuffix))
   );
 }
 
@@ -218,15 +263,29 @@ export function normalizeKoreanKeyword(token: string) {
   return withoutParticle.replace(/(하겠습니다|합니다|한다|하기|적인|적으로)$/g, "");
 }
 
-export function tokenizePledgeText(
-  text: string,
-  extraStopwords: string[] = []
-): string[] {
-  const stopwords = new Set([
+export function createKeywordStopwordSet(extraStopwords: Iterable<string> = []) {
+  const stopwordCandidates = [
     ...commonKeywordStopwords,
     ...mayorKeywordStopwords,
     ...extraStopwords
-  ].map(normalizeKoreanKeyword));
+  ];
+
+  return new Set(
+    stopwordCandidates
+      .flatMap((stopword) => [stopword, ...stopword.split(/\s+/)])
+      .map(normalizeKoreanKeyword)
+      .filter(Boolean)
+  );
+}
+
+export function tokenizePledgeText(
+  text: string,
+  extraStopwords: Iterable<string> | ReadonlySet<string> = []
+): string[] {
+  const stopwords =
+    extraStopwords instanceof Set
+      ? extraStopwords
+      : createKeywordStopwordSet(extraStopwords);
 
   return text
     .replace(/[^\dA-Za-z가-힣]+/g, " ")
@@ -256,12 +315,17 @@ function candidateStopwords(candidates: Candidate[]) {
   ]);
 }
 
-function buildPledgeItems(candidates: Candidate[], query: string | undefined) {
+function buildPledgeItems(
+  candidates: Candidate[],
+  query: string | undefined,
+  stopwords: ReadonlySet<string>
+) {
   return candidates.flatMap((candidate) =>
     candidate.pledges
       .filter((pledge) => includesQuery(pledge, query))
       .map((pledge) => {
         const text = pledgeText(pledge);
+        const keywordTokens = tokenizePledgeText(text, stopwords);
 
         return {
           id: pledge.id,
@@ -274,13 +338,15 @@ function buildPledgeItems(candidates: Candidate[], query: string | undefined) {
           pledgeTitle: pledge.title,
           pledgeSummary: pledge.summary,
           pledgeText: text,
+          keywords: [...new Set(keywordTokens)],
+          keywordTokens,
           materialUrl: candidateMaterialUrl(candidate)
         } satisfies MayorPledgeItem;
       })
   );
 }
 
-function keywordStats(pledgeItems: MayorPledgeItem[], extraStopwords: string[]) {
+function keywordStats(pledgeItems: MayorPledgeItem[]) {
   const stats = new Map<
     string,
     {
@@ -293,7 +359,7 @@ function keywordStats(pledgeItems: MayorPledgeItem[], extraStopwords: string[]) 
   for (const pledge of pledgeItems) {
     const pledgeKeywords = new Set<string>();
 
-    for (const token of tokenizePledgeText(pledge.pledgeText, extraStopwords)) {
+    for (const token of pledge.keywordTokens ?? pledge.keywords) {
       const current =
         stats.get(token) ??
         {
@@ -327,10 +393,11 @@ function keywordStats(pledgeItems: MayorPledgeItem[], extraStopwords: string[]) 
 
 function filterMayorCandidates(
   candidates: Candidate[],
-  filters: MayorPledgeFilter
+  filters: MayorPledgeFilter,
+  includeCandidate: (candidate: Candidate) => boolean = isMayorCandidate
 ) {
   return candidates.filter((candidate) => {
-    if (!isMayorCandidate(candidate)) {
+    if (!includeCandidate(candidate)) {
       return false;
     }
 
@@ -352,8 +419,7 @@ function filterMayorCandidates(
 
 function buildCandidateKeywordSummaries(
   candidates: Candidate[],
-  pledgeItems: MayorPledgeItem[],
-  extraStopwords: string[]
+  pledgeItems: MayorPledgeItem[]
 ) {
   const pledgeItemsByCandidate = pledgeItems.reduce<Record<string, MayorPledgeItem[]>>(
     (groups, pledge) => {
@@ -367,7 +433,7 @@ function buildCandidateKeywordSummaries(
   return candidates
     .map((candidate) => {
       const candidatePledges = pledgeItemsByCandidate[candidate.id] ?? [];
-      const keywords = keywordStats(candidatePledges, extraStopwords)
+      const keywords = keywordStats(candidatePledges)
         .slice(0, 5)
         .map((keyword) => keyword.keyword);
 
@@ -383,12 +449,15 @@ function buildCandidateKeywordSummaries(
 }
 
 export function classifyPolicyCategories(keywords: MayorKeyword[]) {
-  return policyCategoryRules
+  const normalizedRules = policyCategoryRules.map((rule) => ({
+    category: rule.category,
+    keywords: rule.keywords.map(normalizeKoreanKeyword)
+  }));
+
+  return normalizedRules
     .map((rule) => {
       const matchedKeywords = keywords.filter((keyword) =>
-        rule.keywords.some((ruleKeyword) =>
-          keyword.keyword.includes(normalizeKoreanKeyword(ruleKeyword))
-        )
+        rule.keywords.some((ruleKeyword) => keyword.keyword.includes(ruleKeyword))
       );
 
       return {
@@ -403,12 +472,17 @@ export function classifyPolicyCategories(keywords: MayorKeyword[]) {
 
 export function analyzeMayorPledges(
   candidates: Candidate[],
-  filters: MayorPledgeFilter
+  filters: MayorPledgeFilter,
+  includeCandidate?: (candidate: Candidate) => boolean
 ): MayorPledgeAnalysis {
-  const filteredCandidates = filterMayorCandidates(candidates, filters);
-  const extraStopwords = candidateStopwords(filteredCandidates);
-  const pledgeItems = buildPledgeItems(filteredCandidates, filters.query);
-  const keywords = keywordStats(pledgeItems, extraStopwords);
+  const filteredCandidates = filterMayorCandidates(
+    candidates,
+    filters,
+    includeCandidate
+  );
+  const stopwords = createKeywordStopwordSet(candidateStopwords(filteredCandidates));
+  const pledgeItems = buildPledgeItems(filteredCandidates, filters.query, stopwords);
+  const keywords = keywordStats(pledgeItems);
 
   return {
     candidates: filteredCandidates,
@@ -416,9 +490,40 @@ export function analyzeMayorPledges(
     keywords,
     candidateKeywords: buildCandidateKeywordSummaries(
       filteredCandidates,
-      pledgeItems,
-      extraStopwords
+      pledgeItems
     ),
     policyCategories: classifyPolicyCategories(keywords)
+  };
+}
+
+function compactPledgeText(text: string) {
+  return text.length > MAYOR_CLIENT_PLEDGE_TEXT_LIMIT
+    ? `${text.slice(0, MAYOR_CLIENT_PLEDGE_TEXT_LIMIT)}...`
+    : text;
+}
+
+export function prepareMayorPledgeClientAnalysis(
+  analysis: MayorPledgeClientAnalysis
+): MayorPledgeClientAnalysis {
+  const keywords = analysis.keywords.slice(0, MAYOR_CLIENT_KEYWORD_LIMIT);
+  const selectableKeywords = new Set([
+    ...keywords.map((keyword) => keyword.keyword),
+    ...analysis.candidateKeywords.flatMap((candidate) => candidate.keywords)
+  ]);
+
+  return {
+    candidateKeywords: analysis.candidateKeywords,
+    keywords,
+    pledgeItems: analysis.pledgeItems.map((pledge) => {
+      const compactedPledge = {
+        ...pledge,
+        keywords: pledge.keywords.filter((keyword) => selectableKeywords.has(keyword)),
+        pledgeText: compactPledgeText(pledge.pledgeText)
+      };
+
+      delete compactedPledge.keywordTokens;
+      return compactedPledge;
+    }),
+    policyCategories: analysis.policyCategories
   };
 }

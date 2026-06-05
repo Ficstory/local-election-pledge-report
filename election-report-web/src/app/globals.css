@@ -389,6 +389,30 @@ dt {
   font-weight: 900;
 }
 
+.orientation-chip {
+  display: inline-flex;
+  min-height: 26px;
+  align-items: center;
+  border: 1px solid transparent;
+  border-radius: 999px;
+  padding: 0 9px;
+  font-size: 12px;
+  font-weight: 900;
+  white-space: nowrap;
+}
+
+.orientation-progressive {
+  border-color: rgba(35, 87, 216, 0.24);
+  background: #eef4ff;
+  color: #2357d8;
+}
+
+.orientation-conservative {
+  border-color: rgba(200, 52, 60, 0.24);
+  background: #fff1f2;
+  color: #c8343c;
+}
+
 .candidate-meta {
   color: #253044;
   font-size: 15px;
@@ -406,6 +430,19 @@ dt {
   color: var(--muted);
   font-size: 14px;
   line-height: 1.45;
+}
+
+.candidate-orientation-detail {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 10px;
+  color: #475062;
+  font-size: 13px;
+  line-height: 1.45;
+}
+
+.candidate-orientation-detail span {
+  min-width: 0;
 }
 
 .candidate-actions {
@@ -888,6 +925,42 @@ dt {
   outline: none;
 }
 
+.incremental-load-more {
+  display: flex;
+  justify-content: center;
+  padding-top: 8px;
+}
+
+.incremental-load-more button {
+  display: inline-flex;
+  min-height: 44px;
+  align-items: center;
+  justify-content: center;
+  flex-wrap: wrap;
+  gap: 8px 10px;
+  border: 1px solid rgba(35, 87, 216, 0.2);
+  border-radius: 8px;
+  background: #ffffff;
+  color: var(--primary);
+  padding: 0 16px;
+  font-size: 14px;
+  font-weight: 900;
+  cursor: pointer;
+}
+
+.incremental-load-more button:hover,
+.incremental-load-more button:focus-visible {
+  border-color: var(--primary);
+  background: #f3f6ff;
+  outline: none;
+}
+
+.incremental-load-more span {
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 800;
+}
+
 .policy-category-strip {
   box-shadow: none;
 }
@@ -1224,6 +1297,77 @@ dd {
   gap: 4px;
   margin: 12px 0 0;
   padding-left: 18px;
+}
+
+.pledge-sections {
+  display: grid;
+  gap: 14px;
+  margin-top: 14px;
+}
+
+.pledge-section {
+  display: grid;
+  gap: 10px;
+  padding-top: 14px;
+  border-top: 1px solid var(--line);
+}
+
+.pledge-section:first-child {
+  padding-top: 0;
+  border-top: 0;
+}
+
+.pledge-section h4 {
+  margin: 0;
+  color: var(--primary);
+  font-size: 14px;
+  font-weight: 900;
+}
+
+.pledge-item .pledge-sections ul,
+.pledge-item .pledge-raw-lines {
+  display: grid;
+  gap: 8px;
+  margin: 0;
+  padding-left: 0;
+  list-style: none;
+}
+
+.pledge-section-items > li {
+  position: relative;
+  padding-left: 14px;
+}
+
+.pledge-section-items > li::before {
+  position: absolute;
+  top: 10px;
+  left: 0;
+  width: 6px;
+  height: 6px;
+  border-radius: 999px;
+  background: var(--green);
+  content: "";
+}
+
+.pledge-section-item-text {
+  margin: 0;
+  color: var(--text);
+  font-size: 15px;
+  font-weight: 800;
+  line-height: 1.55;
+}
+
+.pledge-item .pledge-detail-lines {
+  gap: 6px;
+  margin-top: 8px;
+  padding-left: 12px;
+  border-left: 2px solid var(--line);
+}
+
+.pledge-detail-lines li,
+.pledge-loose-lines li,
+.pledge-raw-lines li {
+  line-height: 1.65;
 }
 
 .pagination {

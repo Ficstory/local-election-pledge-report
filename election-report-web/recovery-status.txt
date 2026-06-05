@@ -1,0 +1,19 @@
+On branch main
+Your branch is up to date with 'origin/main'.
+
+Changes not staged for commit:
+  (use "git add <file>..." to update what will be committed)
+  (use "git restore <file>..." to discard changes in working directory)
+	modified:   src/app/MayorPledgeAnalysis.tsx
+	modified:   src/app/globals.css
+	modified:   src/lib/mayor-pledge-analysis.test.ts
+	modified:   src/lib/mayor-pledge-analysis.ts
+
+Untracked files:
+  (use "git add <file>..." to include in what will be committed)
+	recovery-codex.patch
+	recovery-status.txt
+	src/lib/incremental-rendering.test.ts
+	src/lib/incremental-rendering.ts
+
+no changes added to commit (use "git add" and/or "git commit -a")
