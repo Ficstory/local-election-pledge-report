@@ -1,0 +1,1072 @@
+{
+  "generatedAt": "2026-06-03T11:19:57.418012+00:00",
+  "manifestPath": "storage/material-groups/20260603/education-superintendents-downloaded.jsonl",
+  "materialType": "TOP_FIVE_PLEDGES",
+  "sgTypecode": "11",
+  "candidateCount": 58,
+  "materialCount": 58,
+  "totalPages": 290,
+  "totalTextChars": 204355,
+  "totalHangulChars": 134011,
+  "topKeywords": [
+    {
+      "keyword": "교육",
+      "count": 2787
+    },
+    {
+      "keyword": "학교",
+      "count": 1249
+    },
+    {
+      "keyword": "지원",
+      "count": 966
+    },
+    {
+      "keyword": "학생",
+      "count": 776
+    },
+    {
+      "keyword": "운영",
+      "count": 666
+    },
+    {
+      "keyword": "확대",
+      "count": 570
+    },
+    {
+      "keyword": "AI",
+      "count": 549
+    },
+    {
+      "keyword": "지역",
+      "count": 476
+    },
+    {
+      "keyword": "예산",
+      "count": 434
+    },
+    {
+      "keyword": "학습",
+      "count": 434
+    },
+    {
+      "keyword": "강화",
+      "count": 372
+    },
+    {
+      "keyword": "교사",
+      "count": 335
+    },
+    {
+      "keyword": "안전",
+      "count": 257
+    },
+    {
+      "keyword": "미래",
+      "count": 239
+    },
+    {
+      "keyword": "학력",
+      "count": 222
+    },
+    {
+      "keyword": "맞춤형",
+      "count": 205
+    },
+    {
+      "keyword": "수업",
+      "count": 204
+    },
+    {
+      "keyword": "진로",
+      "count": 202
+    },
+    {
+      "keyword": "학부모",
+      "count": 188
+    },
+    {
+      "keyword": "디지털",
+      "count": 187
+    },
+    {
+      "keyword": "돌봄",
+      "count": 182
+    },
+    {
+      "keyword": "환경",
+      "count": 177
+    },
+    {
+      "keyword": "체험",
+      "count": 158
+    },
+    {
+      "keyword": "건강",
+      "count": 142
+    },
+    {
+      "keyword": "교육과정",
+      "count": 136
+    },
+    {
+      "keyword": "보호",
+      "count": 136
+    },
+    {
+      "keyword": "기초학력",
+      "count": 133
+    },
+    {
+      "keyword": "교원",
+      "count": 133
+    },
+    {
+      "keyword": "평가",
+      "count": 129
+    },
+    {
+      "keyword": "시설",
+      "count": 120
+    }
+  ],
+  "topTopicKeywords": [
+    {
+      "keyword": "AI",
+      "count": 549
+    },
+    {
+      "keyword": "예산",
+      "count": 434
+    },
+    {
+      "keyword": "학습",
+      "count": 434
+    },
+    {
+      "keyword": "교사",
+      "count": 335
+    },
+    {
+      "keyword": "안전",
+      "count": 257
+    },
+    {
+      "keyword": "학력",
+      "count": 222
+    },
+    {
+      "keyword": "맞춤형",
+      "count": 205
+    },
+    {
+      "keyword": "수업",
+      "count": 204
+    },
+    {
+      "keyword": "진로",
+      "count": 202
+    },
+    {
+      "keyword": "학부모",
+      "count": 188
+    },
+    {
+      "keyword": "디지털",
+      "count": 187
+    },
+    {
+      "keyword": "돌봄",
+      "count": 182
+    },
+    {
+      "keyword": "환경",
+      "count": 177
+    },
+    {
+      "keyword": "체험",
+      "count": 158
+    },
+    {
+      "keyword": "건강",
+      "count": 142
+    },
+    {
+      "keyword": "교육과정",
+      "count": 136
+    },
+    {
+      "keyword": "보호",
+      "count": 136
+    },
+    {
+      "keyword": "기초학력",
+      "count": 133
+    },
+    {
+      "keyword": "교원",
+      "count": 133
+    },
+    {
+      "keyword": "평가",
+      "count": 129
+    },
+    {
+      "keyword": "시설",
+      "count": 120
+    },
+    {
+      "keyword": "상담",
+      "count": 120
+    },
+    {
+      "keyword": "역량",
+      "count": 112
+    },
+    {
+      "keyword": "교권",
+      "count": 110
+    },
+    {
+      "keyword": "자치",
+      "count": 102
+    },
+    {
+      "keyword": "회복",
+      "count": 97
+    },
+    {
+      "keyword": "혁신",
+      "count": 85
+    },
+    {
+      "keyword": "인성",
+      "count": 84
+    },
+    {
+      "keyword": "생태",
+      "count": 82
+    },
+    {
+      "keyword": "초등",
+      "count": 82
+    }
+  ],
+  "topDetailedKeywords": [
+    {
+      "keyword": "AI",
+      "count": 549,
+      "candidateCount": 54,
+      "candidateRate": 0.931
+    },
+    {
+      "keyword": "예산",
+      "count": 434,
+      "candidateCount": 54,
+      "candidateRate": 0.931
+    },
+    {
+      "keyword": "교육청",
+      "count": 340,
+      "candidateCount": 53,
+      "candidateRate": 0.9138
+    },
+    {
+      "keyword": "교사",
+      "count": 336,
+      "candidateCount": 54,
+      "candidateRate": 0.931
+    },
+    {
+      "keyword": "안전",
+      "count": 258,
+      "candidateCount": 53,
+      "candidateRate": 0.9138
+    },
+    {
+      "keyword": "디지털",
+      "count": 187,
+      "candidateCount": 44,
+      "candidateRate": 0.7586
+    },
+    {
+      "keyword": "돌봄",
+      "count": 182,
+      "candidateCount": 44,
+      "candidateRate": 0.7586
+    },
+    {
+      "keyword": "환경",
+      "count": 177,
+      "candidateCount": 50,
+      "candidateRate": 0.8621
+    },
+    {
+      "keyword": "기초학력",
+      "count": 139,
+      "candidateCount": 45,
+      "candidateRate": 0.7759
+    },
+    {
+      "keyword": "교원",
+      "count": 135,
+      "candidateCount": 41,
+      "candidateRate": 0.7069
+    },
+    {
+      "keyword": "상담",
+      "count": 120,
+      "candidateCount": 41,
+      "candidateRate": 0.7069
+    },
+    {
+      "keyword": "시설",
+      "count": 120,
+      "candidateCount": 44,
+      "candidateRate": 0.7586
+    },
+    {
+      "keyword": "교권",
+      "count": 111,
+      "candidateCount": 33,
+      "candidateRate": 0.569
+    },
+    {
+      "keyword": "회복",
+      "count": 98,
+      "candidateCount": 42,
+      "candidateRate": 0.7241
+    },
+    {
+      "keyword": "인성",
+      "count": 86,
+      "candidateCount": 25,
+      "candidateRate": 0.431
+    },
+    {
+      "keyword": "정서",
+      "count": 83,
+      "candidateCount": 35,
+      "candidateRate": 0.6034
+    },
+    {
+      "keyword": "생태",
+      "count": 82,
+      "candidateCount": 34,
+      "candidateRate": 0.5862
+    },
+    {
+      "keyword": "예술",
+      "count": 81,
+      "candidateCount": 29,
+      "candidateRate": 0.5
+    },
+    {
+      "keyword": "급식",
+      "count": 77,
+      "candidateCount": 28,
+      "candidateRate": 0.4828
+    },
+    {
+      "keyword": "통학",
+      "count": 75,
+      "candidateCount": 30,
+      "candidateRate": 0.5172
+    },
+    {
+      "keyword": "스마트",
+      "count": 71,
+      "candidateCount": 29,
+      "candidateRate": 0.5
+    },
+    {
+      "keyword": "체육",
+      "count": 71,
+      "candidateCount": 34,
+      "candidateRate": 0.5862
+    },
+    {
+      "keyword": "교육복지",
+      "count": 70,
+      "candidateCount": 28,
+      "candidateRate": 0.4828
+    },
+    {
+      "keyword": "연수",
+      "count": 68,
+      "candidateCount": 30,
+      "candidateRate": 0.5172
+    },
+    {
+      "keyword": "심리",
+      "count": 66,
+      "candidateCount": 31,
+      "candidateRate": 0.5345
+    },
+    {
+      "keyword": "방과후",
+      "count": 65,
+      "candidateCount": 34,
+      "candidateRate": 0.5862
+    },
+    {
+      "keyword": "학교폭력",
+      "count": 60,
+      "candidateCount": 25,
+      "candidateRate": 0.431
+    },
+    {
+      "keyword": "독서",
+      "count": 60,
+      "candidateCount": 31,
+      "candidateRate": 0.5345
+    },
+    {
+      "keyword": "책임교육",
+      "count": 54,
+      "candidateCount": 28,
+      "candidateRate": 0.4828
+    },
+    {
+      "keyword": "교권보호",
+      "count": 53,
+      "candidateCount": 28,
+      "candidateRate": 0.4828
+    },
+    {
+      "keyword": "다문화",
+      "count": 53,
+      "candidateCount": 25,
+      "candidateRate": 0.431
+    },
+    {
+      "keyword": "소통",
+      "count": 52,
+      "candidateCount": 22,
+      "candidateRate": 0.3793
+    },
+    {
+      "keyword": "특수교육",
+      "count": 48,
+      "candidateCount": 26,
+      "candidateRate": 0.4483
+    },
+    {
+      "keyword": "마음건강",
+      "count": 47,
+      "candidateCount": 23,
+      "candidateRate": 0.3966
+    },
+    {
+      "keyword": "맞춤형교육",
+      "count": 42,
+      "candidateCount": 25,
+      "candidateRate": 0.431
+    },
+    {
+      "keyword": "문해력",
+      "count": 38,
+      "candidateCount": 23,
+      "candidateRate": 0.3966
+    },
+    {
+      "keyword": "진로진학",
+      "count": 38,
+      "candidateCount": 23,
+      "candidateRate": 0.3966
+    },
+    {
+      "keyword": "대입",
+      "count": 35,
+      "candidateCount": 19,
+      "candidateRate": 0.3276
+    },
+    {
+      "keyword": "온라인",
+      "count": 31,
+      "candidateCount": 22,
+      "candidateRate": 0.3793
+    },
+    {
+      "keyword": "학교시설",
+      "count": 31,
+      "candidateCount": 20,
+      "candidateRate": 0.3448
+    }
+  ],
+  "policyCategories": [
+    {
+      "category": "안전·권리",
+      "count": 937,
+      "topTerms": [
+        {
+          "keyword": "안전",
+          "count": 258
+        },
+        {
+          "keyword": "상담",
+          "count": 120
+        },
+        {
+          "keyword": "교권",
+          "count": 111
+        },
+        {
+          "keyword": "회복",
+          "count": 98
+        },
+        {
+          "keyword": "정서",
+          "count": 83
+        },
+        {
+          "keyword": "심리",
+          "count": 66
+        },
+        {
+          "keyword": "학교폭력",
+          "count": 60
+        },
+        {
+          "keyword": "교권보호",
+          "count": 53
+        }
+      ]
+    },
+    {
+      "category": "AI·디지털",
+      "count": 855,
+      "topTerms": [
+        {
+          "keyword": "AI",
+          "count": 549
+        },
+        {
+          "keyword": "디지털",
+          "count": 187
+        },
+        {
+          "keyword": "스마트",
+          "count": 71
+        },
+        {
+          "keyword": "온라인",
+          "count": 31
+        },
+        {
+          "keyword": "에듀테크",
+          "count": 13
+        },
+        {
+          "keyword": "코딩",
+          "count": 3
+        },
+        {
+          "keyword": "소프트웨어",
+          "count": 1
+        }
+      ]
+    },
+    {
+      "category": "행정·재정",
+      "count": 847,
+      "topTerms": [
+        {
+          "keyword": "예산",
+          "count": 434
+        },
+        {
+          "keyword": "교육청",
+          "count": 340
+        },
+        {
+          "keyword": "소통",
+          "count": 52
+        },
+        {
+          "keyword": "청렴",
+          "count": 21
+        }
+      ]
+    },
+    {
+      "category": "인성·문화",
+      "count": 587,
+      "topTerms": [
+        {
+          "keyword": "환경",
+          "count": 177
+        },
+        {
+          "keyword": "인성",
+          "count": 86
+        },
+        {
+          "keyword": "생태",
+          "count": 82
+        },
+        {
+          "keyword": "예술",
+          "count": 81
+        },
+        {
+          "keyword": "체육",
+          "count": 71
+        },
+        {
+          "keyword": "독서",
+          "count": 60
+        },
+        {
+          "keyword": "민주시민",
+          "count": 24
+        },
+        {
+          "keyword": "학생자치",
+          "count": 6
+        }
+      ]
+    },
+    {
+      "category": "교원·수업",
+      "count": 575,
+      "topTerms": [
+        {
+          "keyword": "교사",
+          "count": 336
+        },
+        {
+          "keyword": "교원",
+          "count": 135
+        },
+        {
+          "keyword": "연수",
+          "count": 68
+        },
+        {
+          "keyword": "업무경감",
+          "count": 18
+        },
+        {
+          "keyword": "수업혁신",
+          "count": 12
+        },
+        {
+          "keyword": "수업권",
+          "count": 6
+        }
+      ]
+    },
+    {
+      "category": "돌봄·복지",
+      "count": 551,
+      "topTerms": [
+        {
+          "keyword": "돌봄",
+          "count": 182
+        },
+        {
+          "keyword": "급식",
+          "count": 77
+        },
+        {
+          "keyword": "교육복지",
+          "count": 70
+        },
+        {
+          "keyword": "방과후",
+          "count": 65
+        },
+        {
+          "keyword": "다문화",
+          "count": 53
+        },
+        {
+          "keyword": "특수교육",
+          "count": 48
+        },
+        {
+          "keyword": "늘봄",
+          "count": 19
+        },
+        {
+          "keyword": "유아교육",
+          "count": 18
+        }
+      ]
+    },
+    {
+      "category": "학력·진로",
+      "count": 406,
+      "topTerms": [
+        {
+          "keyword": "기초학력",
+          "count": 139
+        },
+        {
+          "keyword": "책임교육",
+          "count": 54
+        },
+        {
+          "keyword": "맞춤형교육",
+          "count": 42
+        },
+        {
+          "keyword": "문해력",
+          "count": 38
+        },
+        {
+          "keyword": "진로진학",
+          "count": 38
+        },
+        {
+          "keyword": "대입",
+          "count": 35
+        },
+        {
+          "keyword": "고교학점제",
+          "count": 29
+        },
+        {
+          "keyword": "수리력",
+          "count": 15
+        }
+      ]
+    },
+    {
+      "category": "지역·시설",
+      "count": 298,
+      "topTerms": [
+        {
+          "keyword": "시설",
+          "count": 120
+        },
+        {
+          "keyword": "통학",
+          "count": 75
+        },
+        {
+          "keyword": "학교시설",
+          "count": 31
+        },
+        {
+          "keyword": "작은학교",
+          "count": 26
+        },
+        {
+          "keyword": "과밀학급",
+          "count": 16
+        },
+        {
+          "keyword": "농산어촌",
+          "count": 15
+        },
+        {
+          "keyword": "급식실",
+          "count": 7
+        },
+        {
+          "keyword": "화장실",
+          "count": 7
+        }
+      ]
+    }
+  ],
+  "topPhrases": [
+    {
+      "keyword": "교육청 자체",
+      "count": 71
+    },
+    {
+      "keyword": "교육청 자체 예산",
+      "count": 68
+    },
+    {
+      "keyword": "지자체 협력",
+      "count": 37
+    },
+    {
+      "keyword": "지방자치단체 대응투자",
+      "count": 25
+    },
+    {
+      "keyword": "교육부 특별교부금",
+      "count": 19
+    },
+    {
+      "keyword": "교육격차 해소",
+      "count": 19
+    },
+    {
+      "keyword": "자체 예산 국비",
+      "count": 18
+    },
+    {
+      "keyword": "맞춤형 학습",
+      "count": 17
+    },
+    {
+      "keyword": "함께 성장하는",
+      "count": 15
+    },
+    {
+      "keyword": "교육청 예산",
+      "count": 15
+    },
+    {
+      "keyword": "자체예산 지자체",
+      "count": 15
+    },
+    {
+      "keyword": "예산 지방자치단체",
+      "count": 15
+    },
+    {
+      "keyword": "과제 이행절차",
+      "count": 15
+    },
+    {
+      "keyword": "자체 예산 지방자치단체",
+      "count": 15
+    },
+    {
+      "keyword": "예산 지방자치단체 대응투자",
+      "count": 15
+    },
+    {
+      "keyword": "임기내 자체예산",
+      "count": 14
+    },
+    {
+      "keyword": "특별교부금 확보",
+      "count": 13
+    },
+    {
+      "keyword": "지속 가능한",
+      "count": 12
+    },
+    {
+      "keyword": "교육청 자체예산",
+      "count": 12
+    },
+    {
+      "keyword": "이행절차 희망학교",
+      "count": 12
+    },
+    {
+      "keyword": "희망학교 조사",
+      "count": 12
+    },
+    {
+      "keyword": "과제 이행절차 희망학교",
+      "count": 12
+    },
+    {
+      "keyword": "이행절차 희망학교 조사",
+      "count": 12
+    },
+    {
+      "keyword": "교육청 지자체",
+      "count": 11
+    },
+    {
+      "keyword": "기초학력 보장",
+      "count": 10
+    },
+    {
+      "keyword": "기초학력 책임교육",
+      "count": 10
+    },
+    {
+      "keyword": "자체예산 지방자치단체",
+      "count": 10
+    },
+    {
+      "keyword": "AI 디지털",
+      "count": 10
+    },
+    {
+      "keyword": "자체예산 특별교부금",
+      "count": 10
+    },
+    {
+      "keyword": "자체예산 지방자치단체 대응투자",
+      "count": 10
+    },
+    {
+      "keyword": "서비스 제공",
+      "count": 9
+    },
+    {
+      "keyword": "사각지대 없는",
+      "count": 9
+    },
+    {
+      "keyword": "교사 행정업무",
+      "count": 9
+    },
+    {
+      "keyword": "재원조달 교육비특별회계정책",
+      "count": 9
+    },
+    {
+      "keyword": "학부모 부담",
+      "count": 8
+    },
+    {
+      "keyword": "예산 재구조화",
+      "count": 8
+    },
+    {
+      "keyword": "학습 플랫폼",
+      "count": 8
+    },
+    {
+      "keyword": "교육복지 실현",
+      "count": 8
+    },
+    {
+      "keyword": "소외되지 않는",
+      "count": 8
+    },
+    {
+      "keyword": "예산 지자체",
+      "count": 8
+    }
+  ],
+  "topRawTokens": [
+    {
+      "keyword": "교육",
+      "count": 499
+    },
+    {
+      "keyword": "운영",
+      "count": 495
+    },
+    {
+      "keyword": "확대",
+      "count": 491
+    },
+    {
+      "keyword": "지원",
+      "count": 490
+    },
+    {
+      "keyword": "구축",
+      "count": 421
+    },
+    {
+      "keyword": "학교",
+      "count": 415
+    },
+    {
+      "keyword": "학생",
+      "count": 307
+    },
+    {
+      "keyword": "강화",
+      "count": 286
+    },
+    {
+      "keyword": "예산",
+      "count": 242
+    },
+    {
+      "keyword": "추진",
+      "count": 240
+    },
+    {
+      "keyword": "AI",
+      "count": 227
+    },
+    {
+      "keyword": "교육청",
+      "count": 221
+    },
+    {
+      "keyword": "지역",
+      "count": 188
+    },
+    {
+      "keyword": "맞춤형",
+      "count": 185
+    },
+    {
+      "keyword": "임기",
+      "count": 177
+    },
+    {
+      "keyword": "연계",
+      "count": 174
+    },
+    {
+      "keyword": "시스템",
+      "count": 170
+    },
+    {
+      "keyword": "도입",
+      "count": 159
+    },
+    {
+      "keyword": "프로그램",
+      "count": 132
+    },
+    {
+      "keyword": "학습",
+      "count": 131
+    },
+    {
+      "keyword": "디지털",
+      "count": 128
+    },
+    {
+      "keyword": "설립",
+      "count": 126
+    },
+    {
+      "keyword": "활용",
+      "count": 123
+    },
+    {
+      "keyword": "조성",
+      "count": 117
+    },
+    {
+      "keyword": "협력",
+      "count": 113
+    },
+    {
+      "keyword": "통한",
+      "count": 110
+    },
+    {
+      "keyword": "교사",
+      "count": 110
+    },
+    {
+      "keyword": "중심",
+      "count": 107
+    },
+    {
+      "keyword": "기반",
+      "count": 107
+    },
+    {
+      "keyword": "통합",
+      "count": 107
+    }
+  ],
+  "outputs": {
+    "keywordFrequencyCsv": "keyword-frequency.csv",
+    "topicKeywordFrequencyCsv": "topic-keyword-frequency.csv",
+    "detailedKeywordFrequencyCsv": "detailed-keyword-frequency.csv",
+    "detailedKeywordCoverageCsv": "detailed-keyword-coverage.csv",
+    "phraseFrequencyCsv": "phrase-frequency.csv",
+    "policyCategorySummaryCsv": "policy-category-summary.csv",
+    "rawTokenFrequencyCsv": "raw-token-frequency.csv",
+    "wordcloudKeywordsPng": "wordcloud-keywords.png",
+    "wordcloudTopicsPng": "wordcloud-topics.png",
+    "wordcloudDetailedTopicsPng": "wordcloud-detailed-topics.png",
+    "extractionSummaryJsonl": "extraction-summary.jsonl"
+  }
+}

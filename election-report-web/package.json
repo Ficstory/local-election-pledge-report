@@ -20,6 +20,7 @@
     "db:ingest:policy-materials": "node --experimental-strip-types scripts/ingest-policy-materials.mjs",
     "db:ingest:pledges": "node --experimental-strip-types scripts/ingest-pledges.mjs",
     "db:download:policy-materials": "node --experimental-strip-types scripts/download-policy-materials.mjs",
+    "generate:material-groups": "node --experimental-strip-types scripts/generate-material-groups.mjs",
     "prisma:generate": "prisma generate",
     "prisma:migrate": "prisma migrate dev",
     "prisma:studio": "prisma studio"
@@ -27,12 +28,14 @@
   "dependencies": {
     "@prisma/adapter-pg": "^7.8.0",
     "@prisma/client": "^7.8.0",
+    "d3-cloud": "^1.2.9",
     "next": "latest",
     "react": "latest",
     "react-dom": "latest"
   },
   "devDependencies": {
     "@eslint/eslintrc": "latest",
+    "@types/d3-cloud": "^1.2.9",
     "@types/node": "latest",
     "@types/react": "latest",
     "@types/react-dom": "latest",
