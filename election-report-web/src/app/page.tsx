@@ -1,3 +1,6 @@
+import { readFile } from "node:fs/promises";
+import path from "node:path";
+
 import Link from "next/link";
 
 import provincesGeo from "../../public/geodata/kr/skorea_provinces_geo_simple.json";
@@ -11,6 +14,7 @@ import {
   Download,
   FileText,
   GitCompareArrows,
+  Info,
   MapPinned,
   Search,
   ShieldCheck,
@@ -34,6 +38,10 @@ import {
   type EducationOrientationProfile
 } from "../lib/education-orientation";
 import { buildExecutiveAnalysisPath } from "../lib/executive-analysis-api";
+import {
+  EXECUTIVE_PLEDGE_ANALYSIS_OUTPUT_DIR,
+  type ExecutivePledgeAnalysisSummary
+} from "../lib/executive-pledge-analysis";
 import { type MayorPledgeFilter } from "../lib/mayor-pledge-analysis";
 import {
   executiveAnalysisCopyByTab,
@@ -213,20 +221,6 @@ function landingProvinceHref(provinceName: string) {
   return `/?${params.toString()}`;
 }
 
-const landingProvinceLabels = provinceFeatureCollection.features.flatMap((feature) => {
-  const label = landingProvinceLabelsByName[feature.properties.name];
-
-  return label
-    ? [
-        {
-          ...label,
-          href: landingProvinceHref(feature.properties.name),
-          name: feature.properties.name
-        }
-      ]
-    : [];
-});
-
 function getProvincePolygons(feature: ProvinceFeature): GeoPolygon[] {
   return feature.geometry.type === "Polygon"
     ? [feature.geometry.coordinates]
@@ -266,12 +260,25 @@ const koreaMapBounds = collectProvincePositions(
 
 const koreaLongitudeSpan = koreaMapBounds.maxLongitude - koreaMapBounds.minLongitude;
 const koreaLatitudeSpan = koreaMapBounds.maxLatitude - koreaMapBounds.minLatitude;
-const koreaMapScale = Math.min(
+const koreaMapReferenceScale = Math.min(
   (koreaMapWidth - koreaMapPadding * 2) / koreaLongitudeSpan,
   (koreaMapHeight - koreaMapPadding * 2) / koreaLatitudeSpan
 );
+const koreaMapReferenceOffsetX =
+  (koreaMapWidth - koreaLongitudeSpan * koreaMapReferenceScale) / 2;
+const koreaMapReferenceOffsetY =
+  (koreaMapHeight - koreaLatitudeSpan * koreaMapReferenceScale) / 2;
+const koreaMapLongitudeFactor = Math.cos(
+  (((koreaMapBounds.maxLatitude + koreaMapBounds.minLatitude) / 2) * Math.PI) /
+    180
+);
+const koreaProjectedLongitudeSpan = koreaLongitudeSpan * koreaMapLongitudeFactor;
+const koreaMapScale = Math.min(
+  (koreaMapWidth - koreaMapPadding * 2) / koreaProjectedLongitudeSpan,
+  (koreaMapHeight - koreaMapPadding * 2) / koreaLatitudeSpan
+);
 const koreaMapOffsetX =
-  (koreaMapWidth - koreaLongitudeSpan * koreaMapScale) / 2;
+  (koreaMapWidth - koreaProjectedLongitudeSpan * koreaMapScale) / 2;
 const koreaMapOffsetY =
   (koreaMapHeight - koreaLatitudeSpan * koreaMapScale) / 2;
 
@@ -279,7 +286,9 @@ function projectKoreaPoint([longitude, latitude]: GeoPosition): GeoPosition {
   return [
     Number(
       (
-        (longitude - koreaMapBounds.minLongitude) * koreaMapScale +
+        (longitude - koreaMapBounds.minLongitude) *
+          koreaMapLongitudeFactor *
+          koreaMapScale +
         koreaMapOffsetX
       ).toFixed(2)
     ),
@@ -291,6 +300,51 @@ function projectKoreaPoint([longitude, latitude]: GeoPosition): GeoPosition {
     )
   ];
 }
+
+function projectKoreaLabelPoint({
+  x,
+  y
+}: Omit<ProvinceMapLabel, "href" | "label" | "name">): GeoPosition {
+  const normalizedX =
+    (x - koreaMapReferenceOffsetX) / (koreaLongitudeSpan * koreaMapReferenceScale);
+  const normalizedY =
+    (y - koreaMapReferenceOffsetY) / (koreaLatitudeSpan * koreaMapReferenceScale);
+
+  return [
+    Number(
+      (
+        koreaMapOffsetX +
+        normalizedX * koreaProjectedLongitudeSpan * koreaMapScale
+      ).toFixed(2)
+    ),
+    Number(
+      (
+        koreaMapOffsetY +
+        normalizedY * koreaLatitudeSpan * koreaMapScale
+      ).toFixed(2)
+    )
+  ];
+}
+
+const landingProvinceLabels = provinceFeatureCollection.features.flatMap((feature) => {
+  const label = landingProvinceLabelsByName[feature.properties.name];
+
+  if (!label) {
+    return [];
+  }
+
+  const [x, y] = projectKoreaLabelPoint(label);
+
+  return [
+    {
+      ...label,
+      href: landingProvinceHref(feature.properties.name),
+      name: feature.properties.name,
+      x,
+      y
+    }
+  ];
+});
 
 function positionsToBounds(positions: GeoPosition[]) {
   return positions.reduce(
@@ -332,6 +386,7 @@ const koreaMapViewBoxValue = [
   koreaMapViewBox.width.toFixed(2),
   koreaMapViewBox.height.toFixed(2)
 ].join(" ");
+const koreaMapAspectRatio = `${koreaMapViewBox.width.toFixed(2)} / ${koreaMapViewBox.height.toFixed(2)}`;
 
 function ringToPath(ring: GeoRing) {
   const projectedPoints = ring.map(projectKoreaPoint);
@@ -531,14 +586,49 @@ function uniqueSorted(values: Array<string | undefined>) {
 }
 
 function buildMayorOptions(mayorCandidates: ElectionCandidateOption[]) {
+  const partyOrder = new Map<string, number>();
+  const compareBallotOrder = (leftOrder: number, rightOrder: number) => {
+    if (leftOrder === rightOrder) {
+      return 0;
+    }
+
+    if (!Number.isFinite(leftOrder)) {
+      return 1;
+    }
+
+    if (!Number.isFinite(rightOrder)) {
+      return -1;
+    }
+
+    return leftOrder - rightOrder;
+  };
+
+  for (const candidate of mayorCandidates) {
+    const order = Number(candidate.ballotNumber);
+    const ballotOrder =
+      Number.isFinite(order) && order > 0 ? order : Number.POSITIVE_INFINITY;
+    const previousOrder = partyOrder.get(candidate.partyName);
+
+    if (previousOrder === undefined || ballotOrder < previousOrder) {
+      partyOrder.set(candidate.partyName, ballotOrder);
+    }
+  }
+
   return {
     districts: uniqueSorted(
       mayorCandidates.map((candidate) => candidate.districtName)
     ),
     regions: uniqueSorted(mayorCandidates.map((candidate) => candidate.regionName)),
-    parties: uniqueSorted(mayorCandidates.map((candidate) => candidate.partyName)),
+    parties: [...partyOrder.entries()]
+      .sort(
+        ([leftParty, leftOrder], [rightParty, rightOrder]) =>
+          compareBallotOrder(leftOrder, rightOrder) ||
+          leftParty.localeCompare(rightParty, "ko")
+      )
+      .map(([partyName]) => partyName),
     candidates: mayorCandidates
       .map((candidate) => ({
+        ballotNumber: candidate.ballotNumber,
         districtName: candidate.districtName,
         id: candidate.id,
         label: `${candidate.candidateName} (${candidateLocation(candidate)})`,
@@ -715,21 +805,209 @@ function shouldRenderLanding(
   return !dashboardKeys.some((key) => Boolean(singleParam(params, key)?.trim()));
 }
 
-const landingMetrics = [
-  { Icon: UsersRound, label: "총 후보자", value: "697명" },
-  { Icon: FileText, label: "총 공약 수", value: "3,340개" },
-  { Icon: ShieldCheck, label: "정책 분야", value: "20개" },
-  { Icon: MapPinned, label: "분석 선거구", value: "254개" }
+type LandingPolicyShare = {
+  color: string;
+  count: number;
+  label: string;
+  percent: number;
+  value: string;
+};
+
+type LandingPreviewData = {
+  analyzedDistrictCount: number;
+  candidateCount: number;
+  generatedAt: string;
+  pledgeCount: number;
+  policyCategoryCount: number;
+  policyKeywordTotal: number;
+  policyShares: LandingPolicyShare[];
+  policyShareGradient: string;
+};
+
+type CsvRow = Record<string, string>;
+
+type LandingPolicyCategoryRow = {
+  category: string;
+  count: number;
+};
+
+const landingPolicyShareColors = [
+  "var(--color-blue-dark)",
+  "var(--color-blue)",
+  "color-mix(in srgb, var(--color-blue) 86%, white)",
+  "color-mix(in srgb, var(--color-blue) 74%, white)",
+  "color-mix(in srgb, var(--color-blue) 62%, white)",
+  "color-mix(in srgb, var(--color-blue) 50%, white)",
+  "color-mix(in srgb, var(--color-blue) 38%, white)",
+  "color-mix(in srgb, var(--color-blue) 26%, white)",
+  "color-mix(in srgb, var(--color-blue) 16%, white)"
 ];
 
-const landingPolicyShares = [
-  { label: "경제·산업", value: "28.4%" },
-  { label: "복지·보건", value: "22.1%" },
-  { label: "교육", value: "15.3%" },
-  { label: "국토·환경", value: "13.7%" },
-  { label: "정치·행정", value: "8.9%" },
-  { label: "기타", value: "11.6%" }
-];
+function formatLandingInteger(value: number) {
+  return value.toLocaleString("ko-KR");
+}
+
+function formatLandingPercent(value: number) {
+  return `${value.toLocaleString("ko-KR", {
+    maximumFractionDigits: 1,
+    minimumFractionDigits: 1
+  })}%`;
+}
+
+function parseCsvLine(line: string) {
+  const cells: string[] = [];
+  let cell = "";
+  let inQuotes = false;
+
+  for (let index = 0; index < line.length; index += 1) {
+    const char = line[index];
+    const nextChar = line[index + 1];
+
+    if (char === "\"" && inQuotes && nextChar === "\"") {
+      cell += "\"";
+      index += 1;
+      continue;
+    }
+
+    if (char === "\"") {
+      inQuotes = !inQuotes;
+      continue;
+    }
+
+    if (char === "," && !inQuotes) {
+      cells.push(cell);
+      cell = "";
+      continue;
+    }
+
+    cell += char;
+  }
+
+  cells.push(cell);
+  return cells;
+}
+
+function parseCsvRows(rawCsv: string): CsvRow[] {
+  const [headerLine, ...lines] = rawCsv.trim().split(/\r?\n/);
+  const headers = parseCsvLine(headerLine ?? "");
+
+  return lines
+    .filter((line) => line.trim())
+    .map((line) => {
+      const cells = parseCsvLine(line);
+
+      return Object.fromEntries(
+        headers.map((header, index) => [header, cells[index] ?? ""])
+      );
+    });
+}
+
+function buildPolicyShares(rows: LandingPolicyCategoryRow[]) {
+  const sortedRows = [...rows].sort(
+    (left, right) =>
+      right.count - left.count || left.category.localeCompare(right.category, "ko")
+  );
+  const total = sortedRows.reduce((sum, row) => sum + row.count, 0);
+
+  return sortedRows.map((row, index) => {
+    const percent = total > 0 ? (row.count / total) * 100 : 0;
+
+    return {
+      color:
+        landingPolicyShareColors[index] ??
+        landingPolicyShareColors[landingPolicyShareColors.length - 1],
+      count: row.count,
+      label: row.category,
+      percent,
+      value: formatLandingPercent(percent)
+    };
+  });
+}
+
+function buildPolicyShareGradient(policyShares: LandingPolicyShare[]) {
+  if (policyShares.length === 0) {
+    return "conic-gradient(var(--color-blue-soft) 0deg 360deg)";
+  }
+
+  let currentDegree = 0;
+  const segments = policyShares.map((share, index) => {
+    const startDegree = currentDegree;
+    currentDegree =
+      index === policyShares.length - 1
+        ? 360
+        : currentDegree + share.percent * 3.6;
+
+    return `${share.color} ${startDegree.toFixed(2)}deg ${currentDegree.toFixed(
+      2
+    )}deg`;
+  });
+
+  return `conic-gradient(${segments.join(", ")})`;
+}
+
+async function readLandingPreviewData(): Promise<LandingPreviewData> {
+  const analysisDir = path.join(
+    process.cwd(),
+    EXECUTIVE_PLEDGE_ANALYSIS_OUTPUT_DIR
+  );
+  const [summaryRaw, categorySummaryRaw, candidateSummaryRaw] = await Promise.all([
+    readFile(path.join(analysisDir, "summary.json"), "utf8"),
+    readFile(path.join(analysisDir, "policy-category-summary.csv"), "utf8"),
+    readFile(path.join(analysisDir, "candidate-keyword-summary.csv"), "utf8")
+  ]);
+  const summary = JSON.parse(summaryRaw) as ExecutivePledgeAnalysisSummary;
+  const policyCategoryRows = parseCsvRows(categorySummaryRaw)
+    .map((row) => ({
+      category: row.category,
+      count: Number(row.count)
+    }))
+    .filter((row) => row.category && Number.isFinite(row.count));
+  const analyzedDistrictCount = new Set(
+    parseCsvRows(candidateSummaryRaw).map((row) =>
+      [row.sgTypecode, row.regionName, row.districtName, row.officeName].join("|")
+    )
+  ).size;
+  const policyShares = buildPolicyShares(policyCategoryRows);
+
+  return {
+    analyzedDistrictCount,
+    candidateCount: summary.counts.candidateCount,
+    generatedAt: summary.generatedAt,
+    pledgeCount: summary.counts.pledgeCount,
+    policyCategoryCount: policyCategoryRows.length,
+    policyKeywordTotal: policyCategoryRows.reduce(
+      (sum, row) => sum + row.count,
+      0
+    ),
+    policyShares,
+    policyShareGradient: buildPolicyShareGradient(policyShares)
+  };
+}
+
+function landingMetrics(previewData: LandingPreviewData) {
+  return [
+    {
+      Icon: UsersRound,
+      label: "분석 후보자",
+      value: `${formatLandingInteger(previewData.candidateCount)}명`
+    },
+    {
+      Icon: FileText,
+      label: "분석 공약 수",
+      value: `${formatLandingInteger(previewData.pledgeCount)}개`
+    },
+    {
+      Icon: ShieldCheck,
+      label: "정책 분야",
+      value: `${formatLandingInteger(previewData.policyCategoryCount)}개`
+    },
+    {
+      Icon: MapPinned,
+      label: "분석 선거구",
+      value: `${formatLandingInteger(previewData.analyzedDistrictCount)}개`
+    }
+  ];
+}
 
 const landingFeatures = [
   {
@@ -769,6 +1047,7 @@ function LandingKoreaBoundaryMap() {
     <svg
       aria-label="시도 단위 대한민국 행정구역 경계"
       className="landing-korea-boundary-map"
+      preserveAspectRatio="xMidYMid meet"
       role="img"
       viewBox={koreaMapViewBoxValue}
     >
@@ -801,7 +1080,7 @@ function LandingKoreaBoundaryMap() {
               d={provinceToPath(feature)}
               fillRule="evenodd"
             >
-              <title>{feature.properties.name} 시·도지사 분석 보기</title>
+              <title>{`${feature.properties.name} 시·도지사 분석 보기`}</title>
             </path>
           </a>
           );
@@ -830,7 +1109,13 @@ function LandingKoreaBoundaryMap() {
   );
 }
 
-function LandingDashboardPreview() {
+function LandingDashboardPreview({
+  previewData
+}: {
+  previewData: LandingPreviewData;
+}) {
+  const metrics = landingMetrics(previewData);
+
   return (
     <aside
       aria-label="공약 분석 대시보드 미리보기"
@@ -867,7 +1152,7 @@ function LandingDashboardPreview() {
         <section className="landing-preview-summary" aria-label="공약 분석 개요">
           <h2>공약 분석 개요</h2>
           <div className="landing-preview-metrics">
-            {landingMetrics.map((metric) => {
+            {metrics.map((metric) => {
               const MetricIcon = metric.Icon;
 
               return (
@@ -887,26 +1172,30 @@ function LandingDashboardPreview() {
           <section className="landing-chart-card" aria-labelledby="policy-share-title">
             <h2 className="landing-card-title" id="policy-share-title">
               <ChartPie aria-hidden="true" focusable="false" size={18} strokeWidth={2} />
-              정책 분야별 공약 비중
+              정책 분야별 키워드 비중
             </h2>
             <div className="landing-chart-layout">
               <div
-                aria-label="총 공약 수 3,340개 기준 정책 분야 비중"
+                aria-label={`${formatLandingInteger(
+                  previewData.policyKeywordTotal
+                )}개 분류 키워드 기준 정책 분야 비중`}
                 className="landing-donut"
                 role="img"
+                style={{ background: previewData.policyShareGradient }}
               >
                 <span>
-                  <strong>3,340</strong>
-                  총 공약 수
+                  <strong>{formatLandingInteger(previewData.policyKeywordTotal)}</strong>
+                  분류 키워드
                 </span>
               </div>
               <dl className="landing-chart-legend">
-                {landingPolicyShares.map((share, index) => (
+                {previewData.policyShares.map((share) => (
                   <div key={share.label}>
                     <dt>
                       <span
                         aria-hidden="true"
-                        className={`legend-dot tone-${index + 1}`}
+                        className="legend-dot"
+                        style={{ background: share.color }}
                       />
                       {share.label}
                     </dt>
@@ -923,7 +1212,10 @@ function LandingDashboardPreview() {
               지역별 분석 결과보기
             </h2>
             <div className="landing-map-panel">
-              <div className="landing-map-viewport">
+              <div
+                className="landing-map-viewport"
+                style={{ aspectRatio: koreaMapAspectRatio }}
+              >
                 <LandingKoreaBoundaryMap />
               </div>
             </div>
@@ -970,65 +1262,76 @@ function LandingFeatureStrip() {
   );
 }
 
-function LandingSourceBar() {
+function LandingFooter() {
   return (
-    <section className="landing-source-bar" id="data-source">
-      <div className="landing-source-bar-title">
-        <span className="landing-source-bar-icon" aria-hidden="true">
-          <Database focusable="false" size={20} strokeWidth={2} />
+    <footer className="landing-footer">
+      <div
+        aria-label="데이터 활용 안내"
+        className="landing-footer-notice"
+        id="data-source"
+      >
+        <span className="landing-footer-notice-icon" aria-hidden="true">
+          <Info focusable="false" size={18} strokeWidth={2} />
         </span>
-        <strong>데이터 출처</strong>
+        <p>
+          본 서비스는 공공데이터를 기반으로 제공되며, 분석 결과는 참고 자료로 활용해 주세요.
+        </p>
       </div>
-      <p>
-        중앙선거관리위원회 공개데이터와 후보자 선거자료를 연결해 제공하며,
-        원문 확인 흐름을 우선합니다.
-      </p>
-      <Link href="/candidates/search">
-        후보자 검색으로 이동
-        <ArrowRight aria-hidden="true" focusable="false" size={15} strokeWidth={2} />
-      </Link>
-    </section>
+      <nav aria-label="랜딩 하단 링크" className="landing-footer-links">
+        <Link href="/candidates/search">후보자 검색</Link>
+        <Link href="/?election=regional-executive">공약 분석</Link>
+        <Link href="/analysis/education-wordcloud">교육감 키워드</Link>
+        <Link href="/#data-source">데이터 출처</Link>
+      </nav>
+      <p>© 정치한번 읽어볼까. All rights reserved.</p>
+    </footer>
   );
 }
 
-function ProjectLanding() {
+function ProjectLanding({
+  previewData
+}: {
+  previewData: LandingPreviewData;
+}) {
   return (
-    <main className="page-shell landing-page">
-      <section className="landing-hero" aria-labelledby="landing-title">
-        <div className="landing-hero-copy">
-          <p className="eyebrow">중앙선거관리위원회 공개데이터 기반</p>
-          <h1 id="landing-title">선거 공약과 결과를 함께 읽는 페이지</h1>
-          <p className="lead">
-            <span>후보자의 공약, 선거공보, 당선 결과를</span>{" "}
-            <span>연결해 정책 흐름을 확인할 수 있습니다.</span>
-          </p>
-          <div className="landing-actions">
-            <Link className="action-button primary" href="/?election=regional-executive">
-              시·도지사 분석 보기
-              <ArrowRight aria-hidden="true" focusable="false" size={18} strokeWidth={2} />
-            </Link>
-            <Link className="action-button secondary" href="/#landing-features">
-              주요 기능 둘러보기
-              <ChevronRight
-                aria-hidden="true"
-                focusable="false"
-                size={18}
-                strokeWidth={2}
-              />
-            </Link>
+    <div className="landing-layout">
+      <main className="page-shell landing-page">
+        <section className="landing-hero" aria-labelledby="landing-title">
+          <div className="landing-hero-copy">
+            <p className="eyebrow">중앙선거관리위원회 공개데이터 기반</p>
+            <h1 id="landing-title">선거 공약과 결과를 함께 읽는 페이지</h1>
+            <p className="lead">
+              <span>후보자의 공약, 선거공보, 선거 결과를</span>{" "}
+              <span>연결해 정책 흐름을 확인할 수 있습니다.</span>
+            </p>
+            <div className="landing-actions">
+              <Link className="action-button primary" href="/?election=regional-executive">
+                시·도지사 분석 보기
+                <ArrowRight aria-hidden="true" focusable="false" size={18} strokeWidth={2} />
+              </Link>
+              <Link className="action-button secondary" href="/#landing-features">
+                주요 기능 둘러보기
+                <ChevronRight
+                  aria-hidden="true"
+                  focusable="false"
+                  size={18}
+                  strokeWidth={2}
+                />
+              </Link>
+            </div>
+            <p className="landing-source-note">
+              <ShieldCheck aria-hidden="true" focusable="false" size={16} strokeWidth={2} />
+              <span>중앙선거관리위원회 공식 공개데이터를 사용합니다.</span>
+            </p>
           </div>
-          <p className="landing-source-note">
-            <ShieldCheck aria-hidden="true" focusable="false" size={16} strokeWidth={2} />
-            <span>중앙선거관리위원회 공식 공개데이터를 사용합니다.</span>
-          </p>
+          <LandingDashboardPreview previewData={previewData} />
+        </section>
+        <div id="landing-features">
+          <LandingFeatureStrip />
         </div>
-        <LandingDashboardPreview />
-      </section>
-      <div id="landing-features">
-        <LandingFeatureStrip />
-      </div>
-      <LandingSourceBar />
-    </main>
+      </main>
+      <LandingFooter />
+    </div>
   );
 }
 
@@ -1036,7 +1339,9 @@ export default async function Home({ searchParams }: HomeProps) {
   const params = await searchParams;
 
   if (shouldRenderLanding(params)) {
-    return <ProjectLanding />;
+    const previewData = await readLandingPreviewData();
+
+    return <ProjectLanding previewData={previewData} />;
   }
 
   const activeTab = parseElectionTab(singleParam(params, "election"));
