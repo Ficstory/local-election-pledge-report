@@ -1278,7 +1278,7 @@ function LandingFooter() {
         </p>
       </div>
       <nav aria-label="랜딩 하단 링크" className="landing-footer-links">
-        <Link href="/#project-background">프로젝트배경</Link>
+        <Link href="/about">프로젝트 소개</Link>
         <Link href="/#analysis-method">분석방법</Link>
         <Link href="/#data-source">데이터 출처</Link>
         <a href="https://github.com/sponsors/Ficstory" rel="noreferrer" target="_blank">
