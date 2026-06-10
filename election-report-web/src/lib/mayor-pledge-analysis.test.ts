@@ -8,6 +8,7 @@ import {
   isMayorCandidate,
   normalizeKoreanKeyword,
   prepareMayorPledgeClientAnalysis,
+  selectRepresentativeKeywords,
   tokenizePledgeText
 } from "./mayor-pledge-analysis";
 import type { Candidate } from "../types/election";
@@ -150,16 +151,18 @@ describe("mayor pledge analysis", () => {
     const keywordText = keywords.join(" ");
 
     expect(analysis.pledgeItems).toHaveLength(1);
-    expect(keywords.some((keyword) => keyword.includes("교통"))).toBe(true);
-    expect(keywords.some((keyword) => keyword.includes("버스"))).toBe(true);
+    expect(analysis.pledgeItems[0].keywordTokens).toEqual(
+      expect.arrayContaining(["교통", "버스"])
+    );
     expect(keywordText).not.toContain("지원");
     expect(keywordText).not.toContain("확대");
     expect(keywords).not.toContain("학교");
   });
 
-  it("filters by region, party, candidate, and pledge text query", () => {
+  it("filters by region, district, party, candidate, and pledge text query", () => {
     const candidates = [
       makeCandidate({
+        districtName: "강남구",
         id: "seoul-a",
         partyName: "가정당",
         pledges: [
@@ -173,6 +176,7 @@ describe("mayor pledge analysis", () => {
         ]
       }),
       makeCandidate({
+        districtName: "영도구",
         id: "busan-b",
         partyName: "나정당",
         regionName: "부산광역시",
@@ -188,12 +192,17 @@ describe("mayor pledge analysis", () => {
       })
     ];
 
-    const analysis = analyzeMayorPledges(candidates, {
-      candidateId: "seoul-a",
-      partyName: "가정당",
-      query: "창업",
-      regionName: "서울특별시"
-    });
+    const analysis = analyzeMayorPledges(
+      candidates,
+      {
+        candidateId: "seoul-a",
+        districtName: "강남구",
+        partyName: "가정당",
+        query: "창업",
+        regionName: "서울특별시"
+      },
+      () => true
+    );
 
     expect(analysis.candidates.map((candidate) => candidate.id)).toEqual([
       "seoul-a"
@@ -223,10 +232,10 @@ describe("mayor pledge analysis", () => {
           pledges: [
             {
               id: "pledge-1",
-              title: "green transit",
-              summary: "green transit transit",
-              category: "transport",
-              details: ["housing support"]
+              title: "청년 일자리",
+              summary: "청년 일자리 창출과 창업 공간",
+              category: "경제",
+              details: ["주거 안정"]
             }
           ]
         })
@@ -236,17 +245,53 @@ describe("mayor pledge analysis", () => {
 
     expect(analysis.pledgeItems[0].keywordTokens).toEqual(
       expect.arrayContaining([
-      "green",
-      "transit",
-      "housing",
-      "support"
+        "청년",
+        "일자리",
+        "창출",
+        "창업",
+        "공간"
       ])
     );
-    expect(analysis.pledgeItems[0].keywords).toContain("green transit");
+    expect(analysis.pledgeItems[0].keywords).toContain("청년 일자리");
     expect(analysis.keywords.map((keyword) => keyword.keyword)).toContain(
-      "green transit"
+      "청년 일자리"
     );
-    expect(analysis.candidateKeywords[0].keywords).toContain("green transit");
+    expect(analysis.candidateKeywords[0].keywords).toContain("청년 일자리");
+  });
+
+  it("removes administrative and template noise from policy phrases", () => {
+    const analysis = analyzeMayorPledges(
+      [
+        makeCandidate({
+          districtName: "부산광역시",
+          id: "busan-mayor",
+          officeType: "governor",
+          officeName: "부산광역시장",
+          regionName: "부산광역시",
+          pledges: [
+            {
+              id: "pledge-1",
+              title: "글로벌허브도시 특별법 인센티브",
+              summary: "동백전 받은 부산 일반회계 이내 합산 부산찬스",
+              category: "경제",
+              details: [
+                "부산시민 대상 글로벌허브도시 특별법 인센티브로 기업 유치"
+              ]
+            }
+          ]
+        })
+      ],
+      {}
+    );
+    const keywordText = analysis.keywords
+      .map((keyword) => keyword.keyword)
+      .join(" ");
+
+    expect(keywordText).toContain("글로벌허브도시 특별법");
+    expect(keywordText).not.toContain("받은 부산");
+    expect(keywordText).not.toContain("일반회계 이내");
+    expect(keywordText).not.toContain("합산 부산찬스");
+    expect(keywordText).not.toContain("부산시민");
   });
 
   it("compacts mayor analysis before passing it to the client component", () => {
@@ -289,7 +334,7 @@ describe("mayor pledge analysis", () => {
     expect(analysis.pledgeItems[0].pledgeText.length).toBeLessThanOrEqual(173);
   });
 
-  it("keeps the highest pledge-count keywords in the client payload", () => {
+  it("keeps the most relevant representative keywords in the client payload", () => {
     const analysis = prepareMayorPledgeClientAnalysis({
       candidateKeywords: [],
       keywords: [
@@ -313,10 +358,55 @@ describe("mayor pledge analysis", () => {
     });
 
     expect(analysis.keywords).toHaveLength(34);
-    expect(analysis.keywords[0].keyword).toBe("late high-count keyword");
+    expect(analysis.keywords[0].keyword).toBe("keyword-1");
     expect(analysis.keywords.map((keyword) => keyword.keyword)).not.toContain(
-      "keyword-34"
+      "late high-count keyword"
     );
+  });
+
+  it("collapses overlapping keyword phrase variants", () => {
+    const representatives = selectRepresentativeKeywords([
+      {
+        candidateCount: 2,
+        count: 2,
+        keyword: "글로벌 허브",
+        pledgeCount: 2,
+        score: 8
+      },
+      {
+        candidateCount: 2,
+        count: 2,
+        keyword: "글로벌허브도시 특별법",
+        pledgeCount: 2,
+        score: 8
+      },
+      {
+        candidateCount: 2,
+        count: 2,
+        keyword: "글로벌허브도시 특별법 인센티브",
+        pledgeCount: 2,
+        score: 7
+      },
+      {
+        candidateCount: 2,
+        count: 2,
+        keyword: "특별법 인센티브",
+        pledgeCount: 2,
+        score: 6
+      },
+      {
+        candidateCount: 3,
+        count: 4,
+        keyword: "기업 유치",
+        pledgeCount: 4,
+        score: 9
+      }
+    ]);
+
+    expect(representatives.map((keyword) => keyword.keyword)).toEqual([
+      "기업 유치",
+      "글로벌허브도시 특별법"
+    ]);
   });
 
   it("classifies policy categories without per-keyword rule normalization", () => {

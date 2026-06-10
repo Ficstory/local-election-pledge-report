@@ -2,6 +2,7 @@ import type { Candidate } from "../types/election.ts";
 import {
   analyzeMayorPledges,
   classifyPolicyCategories,
+  selectRepresentativeKeywords,
   summarizeMayorKeywordStats,
   summarizeMayorPhraseStats,
   type MayorKeyword,
@@ -492,7 +493,7 @@ function buildSummary({
       resultJoin:
         "Candidate.id와 ElectionResult.candidateId를 연결해 elected, voteCount, voteRate, rank를 반영했습니다.",
       tokenization:
-        "형태소 분석이 아니라 NFKC 정규화, 공백/기호 분리, 후보·정당·지역명·공약 양식·일정/재원 양식 단어 제거를 적용한 토큰/규칙 기반 매칭입니다. 주요 분석 단위는 2~4어절 정책 구문이며, 빈도·후보 커버리지·TF-IDF 유사 점수를 함께 산출하고 상위 10,000개 구문을 저장합니다."
+        "형태소 분석이 아니라 NFKC 정규화, 공백/기호 분리, 후보·정당·지역명·공약 양식·일정/재원 양식 단어 제거를 적용한 토큰/규칙 기반 매칭입니다. 주요 분석 단위는 2~4어절 정책 구문이며, 빈도·후보 커버리지·TF-IDF 유사 점수를 함께 산출한 뒤 겹치는 구문 변형은 대표 구문으로 정리합니다."
     },
     counts: {
       bySgTypecode: buildSgTypecodeSummary(candidates, pledgeItems),
@@ -520,7 +521,7 @@ function buildSummary({
       "후보별 공약 수와 공약 상세 작성량이 달라 단순 빈도는 후보별 노출량 차이의 영향을 받습니다.",
       "키워드와 구문 매칭은 형태소 분석이 아닌 토큰/규칙 기반이므로 동의어, 문맥, 부정 표현을 완전히 해석하지 않습니다.",
       "정책 주제 사전 매핑은 보류했으므로 구문을 교통·복지·경제 같은 상위 주제로 강제 분류하지 않습니다.",
-      "phrase-frequency.csv는 점수 기준 상위 10,000개 구문만 저장해 일회성 조합 구문의 노이즈를 줄였습니다.",
+      "phrase-frequency.csv는 점수와 대표 구문 정리 기준을 적용해 겹치는 조합 구문의 노이즈를 줄였습니다.",
       "당선/낙선 비교는 당선 원인 해석이 아니라 관찰된 공약 텍스트 경향 비교입니다.",
       "득표 정보는 ElectionResult에 저장된 elected, voteCount, voteRate, rank 값을 그대로 연결했습니다.",
       "ElectionResult의 voteCount 또는 voteRate가 null인 후보는 CSV에서 빈 값으로 남깁니다."
@@ -574,7 +575,9 @@ export function buildExecutivePledgeAnalysis(
     scoringCandidateCount: candidates.length
   });
   const phraseKeywords = usefulPhraseKeywords(
-    summarizeMayorPhraseStats(analysis.pledgeItems, candidates.length)
+    selectRepresentativeKeywords(
+      summarizeMayorPhraseStats(analysis.pledgeItems, candidates.length)
+    )
   );
   const electedKeywords = summarizeMayorPhraseStats(
     groupedPledges.elected,

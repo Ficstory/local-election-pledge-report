@@ -9,7 +9,7 @@ import {
   visibleItems
 } from "../lib/incremental-rendering";
 import {
-  compareKeywordsByPledgeCount,
+  compareKeywordsByRelevance,
   tokenizePledgeText,
   type MayorKeyword,
   type MayorPledgeClientAnalysis,
@@ -18,7 +18,8 @@ import {
 } from "../lib/mayor-pledge-analysis";
 import type { ElectionAnalysisCopy } from "../lib/election-tabs";
 
-type CandidateOption = {
+export type CandidateOption = {
+  districtName?: string;
   id: string;
   label: string;
   partyName: string;
@@ -33,6 +34,7 @@ type MayorPledgeAnalysisProps = {
   filters: MayorPledgeFilter;
   options: {
     candidates: CandidateOption[];
+    districts: string[];
     parties: string[];
     regions: string[];
   };
@@ -93,7 +95,8 @@ function snippetFor(pledge: MayorPledgeItem) {
 }
 
 function fontSizeFor(keyword: MayorKeyword, maxCount: number) {
-  const ratio = maxCount > 0 ? keyword.count / maxCount : 0;
+  const weight = keyword.score ?? keyword.pledgeCount ?? keyword.count;
+  const ratio = maxCount > 0 ? weight / maxCount : 0;
   return 15 + Math.pow(ratio, 0.74) * 26;
 }
 
@@ -112,7 +115,59 @@ function scopedLimit(window: RenderWindow, scope: string, initialLimit: number) 
 }
 
 function maxKeywordCount(keywords: MayorKeyword[]) {
-  return Math.max(1, ...keywords.map((keyword) => keyword.count));
+  return Math.max(
+    1,
+    ...keywords.map((keyword) => keyword.score ?? keyword.pledgeCount ?? keyword.count)
+  );
+}
+
+function keywordEvidenceLabel(keyword: MayorKeyword) {
+  return `${keyword.candidateCount.toLocaleString("ko-KR")}명 후보 · ${keyword.pledgeCount.toLocaleString("ko-KR")}개 공약`;
+}
+
+function uniqueSorted(values: Array<string | undefined>) {
+  return [
+    ...new Set(values.filter((value): value is string => Boolean(value)))
+  ].sort((left, right) => left.localeCompare(right, "ko"));
+}
+
+export function mayorPartyOptionsForRegion(
+  candidates: CandidateOption[],
+  regionName?: string,
+  districtName?: string
+) {
+  return uniqueSorted(
+    candidates
+      .filter(
+        (candidate) =>
+          (!regionName || candidate.regionName === regionName) &&
+          (!districtName || candidate.districtName === districtName)
+      )
+      .map((candidate) => candidate.partyName)
+  );
+}
+
+export function mayorDistrictOptionsForRegion(
+  candidates: CandidateOption[],
+  regionName?: string
+) {
+  return uniqueSorted(
+    candidates
+      .filter((candidate) => !regionName || candidate.regionName === regionName)
+      .map((candidate) => candidate.districtName)
+  );
+}
+
+export function filteredMayorCandidateOptions(
+  candidates: CandidateOption[],
+  filters: Pick<MayorPledgeFilter, "districtName" | "partyName" | "regionName">
+) {
+  return candidates.filter(
+    (candidate) =>
+      (!filters.regionName || candidate.regionName === filters.regionName) &&
+      (!filters.districtName || candidate.districtName === filters.districtName) &&
+      (!filters.partyName || candidate.partyName === filters.partyName)
+  );
 }
 
 export function MayorPledgeAnalysis({
@@ -126,6 +181,18 @@ export function MayorPledgeAnalysis({
   const [loadedAnalysis, setLoadedAnalysis] = useState<LoadedAnalysis>();
   const [analysisError, setAnalysisError] = useState<AnalysisError>();
   const [selectedKeyword, setSelectedKeyword] = useState<string | null>(null);
+  const [selectedRegionName, setSelectedRegionName] = useState(
+    filters.regionName ?? ""
+  );
+  const [selectedDistrictName, setSelectedDistrictName] = useState(
+    filters.districtName ?? ""
+  );
+  const [selectedPartyName, setSelectedPartyName] = useState(
+    filters.partyName ?? ""
+  );
+  const [selectedCandidateId, setSelectedCandidateId] = useState(
+    filters.candidateId ?? ""
+  );
   const [candidateKeywordWindow, setCandidateKeywordWindow] = useState<RenderWindow>({
     limit: CANDIDATE_KEYWORD_INITIAL_LIMIT,
     scope: ""
@@ -151,6 +218,50 @@ export function MayorPledgeAnalysis({
       ? "error"
       : "loading";
   const analysis = loadedAnalysisForUrl ?? emptyAnalysis;
+  const showDistrictFilter = electionValue === "local-executive";
+  const activeRegionName = options.regions.includes(selectedRegionName)
+    ? selectedRegionName
+    : "";
+  const districtOptions = useMemo(() => {
+    const districts = mayorDistrictOptionsForRegion(
+      options.candidates,
+      activeRegionName
+    );
+
+    return districts.length > 0 || activeRegionName ? districts : options.districts;
+  }, [activeRegionName, options.candidates, options.districts]);
+  const activeDistrictName =
+    showDistrictFilter && districtOptions.includes(selectedDistrictName)
+      ? selectedDistrictName
+      : "";
+  const partyOptions = useMemo(() => {
+    const parties = mayorPartyOptionsForRegion(
+      options.candidates,
+      activeRegionName,
+      activeDistrictName
+    );
+
+    return parties.length > 0 || activeRegionName || activeDistrictName
+      ? parties
+      : options.parties;
+  }, [activeDistrictName, activeRegionName, options.candidates, options.parties]);
+  const activePartyName = partyOptions.includes(selectedPartyName)
+    ? selectedPartyName
+    : "";
+  const candidateOptions = useMemo(
+    () =>
+      filteredMayorCandidateOptions(options.candidates, {
+        districtName: activeDistrictName || undefined,
+        partyName: activePartyName || undefined,
+        regionName: activeRegionName || undefined
+      }),
+    [activeDistrictName, activePartyName, activeRegionName, options.candidates]
+  );
+  const activeCandidateId = candidateOptions.some(
+    (candidate) => candidate.id === selectedCandidateId
+  )
+    ? selectedCandidateId
+    : "";
 
   useEffect(() => {
     if (initialAnalysis || !analysisUrl) {
@@ -193,7 +304,7 @@ export function MayorPledgeAnalysis({
   }, [analysisUrl, initialAnalysis]);
 
   const rankedKeywords = useMemo(
-    () => [...analysis.keywords].sort(compareKeywordsByPledgeCount),
+    () => [...analysis.keywords].sort(compareKeywordsByRelevance),
     [analysis.keywords]
   );
   const topKeywords = rankedKeywords.slice(0, TOP_KEYWORD_RANK_LIMIT);
@@ -209,7 +320,11 @@ export function MayorPledgeAnalysis({
     [analysis.pledgeItems, selectedKeyword]
   );
   const hasFilters = Boolean(
-    filters.regionName || filters.partyName || filters.candidateId || filters.query
+    filters.regionName ||
+      filters.districtName ||
+      filters.partyName ||
+      filters.candidateId ||
+      filters.query
   );
   const hasAnalysisText = analysis.pledgeItems.length > 0;
   const hasEnoughKeywords = cloudKeywords.length > 0;
@@ -245,6 +360,46 @@ export function MayorPledgeAnalysis({
 
   function activateKeyword(keyword: string) {
     setSelectedKeyword((current) => (current === keyword ? null : keyword));
+  }
+
+  function selectRegion(regionName: string) {
+    setSelectedRegionName(regionName);
+    setSelectedDistrictName("");
+    setSelectedCandidateId("");
+    setSelectedPartyName((currentPartyName) => {
+      if (!currentPartyName) {
+        return "";
+      }
+
+      return mayorPartyOptionsForRegion(options.candidates, regionName).includes(
+        currentPartyName
+      )
+        ? currentPartyName
+        : "";
+    });
+  }
+
+  function selectDistrict(districtName: string) {
+    setSelectedDistrictName(districtName);
+    setSelectedCandidateId("");
+    setSelectedPartyName((currentPartyName) => {
+      if (!currentPartyName) {
+        return "";
+      }
+
+      return mayorPartyOptionsForRegion(
+        options.candidates,
+        activeRegionName,
+        districtName
+      ).includes(currentPartyName)
+        ? currentPartyName
+        : "";
+    });
+  }
+
+  function selectParty(partyName: string) {
+    setSelectedPartyName(partyName);
+    setSelectedCandidateId("");
   }
 
   function showMoreCandidateKeywords() {
@@ -296,11 +451,19 @@ export function MayorPledgeAnalysis({
             <p>{copy.filterDescription}</p>
           </div>
         </div>
-        <form className="filter-form mayor-filter-form">
+        <form
+          className={`filter-form mayor-filter-form ${
+            showDistrictFilter ? "has-district-filter" : ""
+          }`}
+        >
           <input name="election" type="hidden" value={electionValue} />
           <label>
             <span>지역 선택</span>
-            <select defaultValue={filters.regionName ?? ""} name="region">
+            <select
+              name="region"
+              onChange={(event) => selectRegion(event.target.value)}
+              value={activeRegionName}
+            >
               <option value="">전체 지역</option>
               {options.regions.map((region) => (
                 <option key={region} value={region}>
@@ -309,11 +472,32 @@ export function MayorPledgeAnalysis({
               ))}
             </select>
           </label>
+          {showDistrictFilter ? (
+            <label>
+              <span>세부지역 선택</span>
+              <select
+                name="district"
+                onChange={(event) => selectDistrict(event.target.value)}
+                value={activeDistrictName}
+              >
+                <option value="">전체 시·군·구</option>
+                {districtOptions.map((district) => (
+                  <option key={district} value={district}>
+                    {district}
+                  </option>
+                ))}
+              </select>
+            </label>
+          ) : null}
           <label>
             <span>정당 선택</span>
-            <select defaultValue={filters.partyName ?? ""} name="party">
+            <select
+              name="party"
+              onChange={(event) => selectParty(event.target.value)}
+              value={activePartyName}
+            >
               <option value="">전체 정당</option>
-              {options.parties.map((party) => (
+              {partyOptions.map((party) => (
                 <option key={party} value={party}>
                   {party}
                 </option>
@@ -322,9 +506,13 @@ export function MayorPledgeAnalysis({
           </label>
           <label>
             <span>후보자 선택</span>
-            <select defaultValue={filters.candidateId ?? ""} name="candidate">
+            <select
+              name="candidate"
+              onChange={(event) => setSelectedCandidateId(event.target.value)}
+              value={activeCandidateId}
+            >
               <option value="">전체 후보 합산</option>
-              {options.candidates.map((candidate) => (
+              {candidateOptions.map((candidate) => (
                 <option key={candidate.id} value={candidate.id}>
                   {candidate.label}
                 </option>
@@ -379,7 +567,7 @@ export function MayorPledgeAnalysis({
               <div className="mayor-section-heading">
                 <div>
                   <h2>주요 공약 키워드</h2>
-                  <p>단어를 선택하면 관련 공약 원문을 확인할 수 있습니다.</p>
+                  <p>후보 커버리지와 반복 빈도를 함께 반영한 대표 구문입니다.</p>
                 </div>
                 {selectedKeyword ? (
                   <button
@@ -393,22 +581,30 @@ export function MayorPledgeAnalysis({
               </div>
 
               {hasEnoughKeywords ? (
-                <div className="mayor-wordcloud-stage" aria-live="polite">
-                  {cloudKeywords.map((keyword) => (
-                    <button
-                      className={`mayor-cloud-word ${
-                        selectedKeyword === keyword.keyword ? "selected" : ""
-                      }`}
-                      key={keyword.keyword}
-                      onClick={() => activateKeyword(keyword.keyword)}
-                      style={wordStyle(keyword, maxCount)}
-                      type="button"
-                    >
-                      <span>{keyword.keyword}</span>
-                      <em>{keyword.count.toLocaleString("ko-KR")}</em>
-                    </button>
-                  ))}
-                </div>
+                <>
+                  <div className="analysis-method-strip" aria-label="키워드 산출 기준">
+                    <span>대표 구문</span>
+                    <span>중복 변형 제거</span>
+                    <span>후보·공약 커버리지 반영</span>
+                  </div>
+                  <div className="mayor-wordcloud-stage" aria-live="polite">
+                    {cloudKeywords.map((keyword) => (
+                      <button
+                        className={`mayor-cloud-word ${
+                          selectedKeyword === keyword.keyword ? "selected" : ""
+                        }`}
+                        key={keyword.keyword}
+                        onClick={() => activateKeyword(keyword.keyword)}
+                        style={wordStyle(keyword, maxCount)}
+                        title={keywordEvidenceLabel(keyword)}
+                        type="button"
+                      >
+                        <span>{keyword.keyword}</span>
+                        <em>{keyword.pledgeCount.toLocaleString("ko-KR")}개</em>
+                      </button>
+                    ))}
+                  </div>
+                </>
               ) : (
                 <div className="state-panel">
                   <p>분석할 수 있는 공약 문장이 충분하지 않습니다.</p>
@@ -436,7 +632,7 @@ export function MayorPledgeAnalysis({
                   >
                     <span>{index + 1}</span>
                     <strong>{keyword.keyword}</strong>
-                    <em>{keyword.pledgeCount.toLocaleString("ko-KR")}개 공약</em>
+                    <em>{keywordEvidenceLabel(keyword)}</em>
                   </button>
                 ))}
               </div>
@@ -447,7 +643,7 @@ export function MayorPledgeAnalysis({
             <div className="mayor-section-heading">
               <div>
                 <h2>후보별 특징 키워드</h2>
-                <p>현재는 후보별 단순 빈도 TOP 5이며, 추후 TF-IDF 방식으로 개선할 수 있습니다.</p>
+                <p>전체 후보 대비 해당 후보 공약에서 두드러지는 대표 구문입니다.</p>
               </div>
             </div>
             {analysis.candidateKeywords.length > 0 ? (

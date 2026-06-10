@@ -117,10 +117,10 @@ describe("executive pledge analysis", () => {
         pledges: [
           {
             category: "",
-            details: ["housing"],
+            details: ["주거 안정"],
             id: "winner-pledge",
-            summary: "transit",
-            title: "transit"
+            summary: "교통 인프라",
+            title: "교통 인프라"
           }
         ],
         sgTypecode: "3"
@@ -137,23 +137,23 @@ describe("executive pledge analysis", () => {
             category: "",
             details: [],
             id: "runner-up-pledge",
-            summary: "jobs",
-            title: "housing"
+            summary: "일자리 창출",
+            title: "주거 안정"
           }
         ],
         sgTypecode: "3"
       })
     ]);
-    const transit = analysis.keywordFrequencyRows.find(
-      (row) => row.keyword === "transit"
+    const transitKeyword = analysis.keywordFrequencyRows.find(
+      (row) => row.keyword === "교통"
     );
     const comparison = analysis.electedVsNonElectedKeywordRows.find(
-      (row) => row.keyword.includes("transit")
+      (row) => row.keyword.includes("교통 인프라")
     );
 
     expect(analysis.summary.counts.electedCandidateCount).toBe(1);
     expect(analysis.summary.counts.nonElectedCandidateCount).toBe(1);
-    expect(transit).toMatchObject({
+    expect(transitKeyword).toMatchObject({
       count: 2,
       electedCount: 2,
       nonElectedCount: 0
@@ -178,8 +178,8 @@ describe("executive pledge analysis", () => {
             category: "",
             details: [],
             id: "pledge",
-            summary: "jobs",
-            title: "jobs transit"
+            summary: "교통 개선",
+            title: "일자리 창출"
           }
         ],
         sgTypecode: "4"
@@ -195,7 +195,7 @@ describe("executive pledge analysis", () => {
       voteRate: 51.23
     });
     expect(analysis.candidateKeywordSummaryRows[0].topKeywords).toContain(
-      "jobs transit"
+      "일자리 창출"
     );
   });
 
@@ -211,10 +211,10 @@ describe("executive pledge analysis", () => {
         pledges: [
           {
             category: "",
-            details: ["goal execution period transit expansion"],
+            details: ["목표 실행기간 교통 확충"],
             id: "pledge",
-            summary: "transit expansion",
-            title: "transit expansion"
+            summary: "교통 확충",
+            title: "교통 확충"
           }
         ],
         sgTypecode: "3"
@@ -222,10 +222,10 @@ describe("executive pledge analysis", () => {
     ]);
 
     expect(analysis.keywordFrequencyRows.map((row) => row.keyword)).toContain(
-      "transit"
+      "교통"
     );
     expect(analysis.phraseFrequencyRows.map((row) => row.keyword)).toContain(
-      "transit expansion"
+      "교통 확충"
     );
     expect(analysis.phraseFrequencyRows[0].score).toBeGreaterThan(0);
   });

@@ -6,6 +6,7 @@ import {
 
 export type MayorPledgeFilter = {
   candidateId?: string;
+  districtName?: string;
   partyName?: string;
   query?: string;
   regionName?: string;
@@ -101,11 +102,65 @@ export const mayorKeywordStopwords = [
   "도시",
   "시정",
   "시장",
+  "시민",
+  "도민",
+  "군민",
+  "구민",
   "주민",
   "우리",
   "행복",
   "미래",
   "함께"
+];
+
+export const analysisNoiseStopwords = [
+  "구분",
+  "내용",
+  "주요내용",
+  "세부",
+  "사항",
+  "해당",
+  "연차별",
+  "실행",
+  "순차",
+  "진행",
+  "완성",
+  "시작",
+  "우선",
+  "우선순위",
+  "반영",
+  "필요",
+  "예상",
+  "소요",
+  "합산",
+  "이내",
+  "이후",
+  "이전",
+  "동안",
+  "일정",
+  "국도비",
+  "지방비",
+  "시군비",
+  "중앙정부",
+  "공모",
+  "공모사업",
+  "국가사업",
+  "국가계획",
+  "일반회계",
+  "특별회계",
+  "기금",
+  "추경",
+  "추가경정예산",
+  "당초예산",
+  "운영재원",
+  "백만원",
+  "받은",
+  "받는",
+  "받고",
+  "않게",
+  "어느",
+  "가는",
+  "butx"
 ];
 
 export const pledgeTemplateStopwords = [
@@ -263,6 +318,32 @@ const koreanParticles = [
   "도",
   "만"
 ];
+const allowedLatinPolicyTokens = new Set([
+  "ai",
+  "bto",
+  "ict",
+  "it",
+  "k",
+  "mou",
+  "ppp",
+  "re",
+  "re100",
+  "tf",
+  "uam"
+]);
+
+const administrativeSuffixes = [
+  "특별자치도",
+  "특별자치시",
+  "광역시",
+  "특별시",
+  "자치구",
+  "자치시",
+  "도",
+  "시",
+  "군",
+  "구"
+];
 
 function candidateLocation(candidate: Candidate) {
   return candidate.districtName
@@ -326,8 +407,11 @@ export function isMayorCandidate(candidate: Candidate) {
 }
 
 function pledgeText(pledge: Pledge) {
-  const details = pledge.details.join(" ");
-  return [pledge.title, pledge.summary, details].filter(Boolean).join(" ");
+  return pledgeTextSegments(pledge).join(" ");
+}
+
+function pledgeTextSegments(pledge: Pledge) {
+  return [pledge.title, pledge.summary, ...pledge.details].filter(Boolean);
 }
 
 function includesQuery(pledge: Pledge, query: string | undefined) {
@@ -360,13 +444,66 @@ export function normalizeKoreanKeyword(token: string) {
       : current;
   }, compactToken);
 
-  return withoutParticle.replace(/(하겠습니다|합니다|한다|하기|적인|적으로)$/g, "");
+  return withoutParticle.replace(
+    /(하겠습니다|합니다|한다|하기|하여|하고|하며|되는|되도록|하도록|위한|통한|적인|적으로)$/g,
+    ""
+  );
+}
+
+const normalizedAnalysisNoiseStopwords = new Set(
+  analysisNoiseStopwords.map(normalizeKoreanKeyword).filter(Boolean)
+);
+const normalizedPolicyAnchorTerms = new Set(
+  policyCategoryRules
+    .flatMap((rule) => rule.keywords)
+    .map(normalizeKoreanKeyword)
+    .filter(Boolean)
+);
+
+const genericPolicyPhrases = new Set([
+  "mou 체결",
+  "tf 구성",
+  "가는 ai",
+  "공공 민간",
+  "도지사 직속",
+  "지방채 발행",
+  "시스템 도입",
+  "지속 가능한",
+  "행정 절차",
+  "협의체 구성"
+]);
+
+function administrativeNameVariants(value: string | undefined) {
+  const normalized = normalizeKoreanKeyword(value ?? "");
+
+  if (!normalized) {
+    return [];
+  }
+
+  const variants = new Set([normalized]);
+
+  for (const suffix of administrativeSuffixes) {
+    if (normalized.endsWith(suffix) && normalized.length > suffix.length + 1) {
+      const baseName = normalized.slice(0, -suffix.length);
+
+      variants.add(baseName);
+
+      if (suffix !== "시" && suffix !== "군" && suffix !== "구") {
+        variants.add(`${baseName}시`);
+        variants.add(`${baseName}군`);
+        variants.add(`${baseName}구`);
+      }
+    }
+  }
+
+  return [...variants];
 }
 
 export function createKeywordStopwordSet(extraStopwords: Iterable<string> = []) {
   const stopwordCandidates = [
     ...commonKeywordStopwords,
     ...mayorKeywordStopwords,
+    ...analysisNoiseStopwords,
     ...pledgeTemplateStopwords,
     ...extraStopwords
   ];
@@ -379,6 +516,15 @@ export function createKeywordStopwordSet(extraStopwords: Iterable<string> = []) 
   );
 }
 
+function isAdministrativeAudienceToken(
+  token: string,
+  stopwords: ReadonlySet<string>
+) {
+  const match = /^(.+?)(시민|도민|군민|구민|주민)$/.exec(token);
+
+  return Boolean(match?.[1] && stopwords.has(match[1]));
+}
+
 export function tokenizePledgeText(
   text: string,
   extraStopwords: Iterable<string> | ReadonlySet<string> = []
@@ -387,6 +533,7 @@ export function tokenizePledgeText(
     extraStopwords instanceof Set
       ? extraStopwords
       : createKeywordStopwordSet(extraStopwords);
+  const hasHangulText = /\p{Script=Hangul}/u.test(text);
 
   return text
     .replace(/[^\p{L}\p{N}]+/gu, " ")
@@ -405,7 +552,22 @@ export function tokenizePledgeText(
         return false;
       }
 
-      if (/\d/.test(token) && !/^(1인가구|2차전지|4차산업|5g)$/i.test(token)) {
+      if (
+        /\d/.test(token) &&
+        !/^(1인가구|2차전지|4차산업|5g|re100)$/i.test(token)
+      ) {
+        return false;
+      }
+
+      if (
+        hasHangulText &&
+        /^[a-z]+$/i.test(token) &&
+        !allowedLatinPolicyTokens.has(token)
+      ) {
+        return false;
+      }
+
+      if (isAdministrativeAudienceToken(token, stopwords)) {
         return false;
       }
 
@@ -421,6 +583,24 @@ function hasEnoughPolicySignal(tokens: string[]) {
   return tokens.some((token) => phraseTokenLength(token) >= 2);
 }
 
+function hasBlockedPhraseToken(tokens: string[]) {
+  return tokens.some((token) => normalizedAnalysisNoiseStopwords.has(token));
+}
+
+function hasPolicyAnchor(tokens: string[]) {
+  return tokens.some((token) => {
+    if (normalizedPolicyAnchorTerms.has(token)) {
+      return true;
+    }
+
+    if (phraseTokenLength(token) >= 3 && !/^[a-z]+$/i.test(token)) {
+      return true;
+    }
+
+    return allowedLatinPolicyTokens.has(token);
+  });
+}
+
 export function extractPolicyPhrasesFromTokens(tokens: string[]) {
   const phrases: string[] = [];
 
@@ -433,6 +613,14 @@ export function extractPolicyPhrasesFromTokens(tokens: string[]) {
         continue;
       }
 
+      if (hasBlockedPhraseToken(phraseTokens)) {
+        continue;
+      }
+
+      if (!hasPolicyAnchor(phraseTokens)) {
+        continue;
+      }
+
       if (uniqueTokenCount === 1) {
         continue;
       }
@@ -441,7 +629,13 @@ export function extractPolicyPhrasesFromTokens(tokens: string[]) {
         continue;
       }
 
-      phrases.push(phraseTokens.join(" "));
+      const phrase = phraseTokens.join(" ");
+
+      if (genericPolicyPhrases.has(phrase)) {
+        continue;
+      }
+
+      phrases.push(phrase);
     }
   }
 
@@ -453,7 +647,9 @@ function candidateStopwords(candidates: Candidate[]) {
     candidate.candidateName,
     candidate.partyName,
     candidate.regionName,
+    ...administrativeNameVariants(candidate.regionName),
     candidate.districtName ?? "",
+    ...administrativeNameVariants(candidate.districtName),
     candidate.officeName,
     candidate.electionName
   ]);
@@ -469,8 +665,13 @@ function buildPledgeItems(
       .filter((pledge) => includesQuery(pledge, query))
       .map((pledge) => {
         const text = pledgeText(pledge);
-        const keywordTokens = tokenizePledgeText(text, stopwords);
-        const phraseTokens = extractPolicyPhrasesFromTokens(keywordTokens);
+        const segmentKeywordTokens = pledgeTextSegments(pledge).map((segment) =>
+          tokenizePledgeText(segment, stopwords)
+        );
+        const keywordTokens = segmentKeywordTokens.flat();
+        const phraseTokens = [
+          ...new Set(segmentKeywordTokens.flatMap(extractPolicyPhrasesFromTokens))
+        ];
 
         return {
           id: pledge.id,
@@ -605,6 +806,151 @@ export function summarizeMayorPhraseStats(
   });
 }
 
+function keywordRelevanceScore(keyword: MayorKeyword) {
+  if (typeof keyword.score === "number") {
+    return keyword.score;
+  }
+
+  return (
+    Math.log1p(keyword.count) *
+    (0.7 + Math.log1p(keyword.pledgeCount)) *
+    (0.7 + Math.log1p(keyword.candidateCount))
+  );
+}
+
+function keywordTokenSet(keyword: string) {
+  return new Set(keyword.split(/\s+/).filter(Boolean));
+}
+
+function compactKeyword(keyword: string) {
+  return keyword.replace(/\s+/g, "");
+}
+
+function keywordSpecificityScore(keyword: string) {
+  return compactKeyword(keyword).length;
+}
+
+function intersectionSize(left: Set<string>, right: Set<string>) {
+  let count = 0;
+
+  for (const token of left) {
+    if (right.has(token)) {
+      count += 1;
+    }
+  }
+
+  return count;
+}
+
+const genericSharedPhraseTokens = new Set([
+  "거점",
+  "구조",
+  "기반",
+  "모델",
+  "시스템",
+  "인프라",
+  "전환",
+  "중심",
+  "체계",
+  "플랫폼",
+  "프로그램",
+  "환경"
+]);
+
+function hasSpecificSharedToken(left: Set<string>, right: Set<string>) {
+  for (const token of left) {
+    if (
+      right.has(token) &&
+      phraseTokenLength(token) >= 3 &&
+      !genericSharedPhraseTokens.has(token) &&
+      !normalizedPolicyAnchorTerms.has(token)
+    ) {
+      return true;
+    }
+  }
+
+  return false;
+}
+
+function areRelatedKeywordPhrases(left: string, right: string) {
+  const leftTokens = keywordTokenSet(left);
+  const rightTokens = keywordTokenSet(right);
+  const compactLeft = compactKeyword(left);
+  const compactRight = compactKeyword(right);
+
+  if (leftTokens.size === 0 || rightTokens.size === 0) {
+    return false;
+  }
+
+  if (
+    /\p{Script=Hangul}/u.test(compactLeft) &&
+    /\p{Script=Hangul}/u.test(compactRight) &&
+    compactLeft.length >= 4 &&
+    compactRight.length >= 4 &&
+    (compactLeft.includes(compactRight) || compactRight.includes(compactLeft))
+  ) {
+    return true;
+  }
+
+  const overlap = intersectionSize(leftTokens, rightTokens);
+  const shorterSize = Math.min(leftTokens.size, rightTokens.size);
+  const longerSize = Math.max(leftTokens.size, rightTokens.size);
+
+  if (overlap === shorterSize && longerSize - shorterSize <= 2) {
+    return true;
+  }
+
+  if (
+    overlap >= 1 &&
+    leftTokens.size <= 2 &&
+    rightTokens.size <= 2 &&
+    hasSpecificSharedToken(leftTokens, rightTokens)
+  ) {
+    return true;
+  }
+
+  return overlap / shorterSize >= 0.8 && overlap / longerSize >= 0.6;
+}
+
+export function compareKeywordsByRelevance(
+  left: MayorKeyword,
+  right: MayorKeyword
+) {
+  return (
+    keywordRelevanceScore(right) - keywordRelevanceScore(left) ||
+    right.candidateCount - left.candidateCount ||
+    right.pledgeCount - left.pledgeCount ||
+    right.count - left.count ||
+    keywordSpecificityScore(right.keyword) - keywordSpecificityScore(left.keyword) ||
+    left.keyword.localeCompare(right.keyword, "ko")
+  );
+}
+
+export function selectRepresentativeKeywords(
+  keywords: MayorKeyword[],
+  limit = keywords.length
+) {
+  const representatives: MayorKeyword[] = [];
+
+  for (const keyword of [...keywords].sort(compareKeywordsByRelevance)) {
+    if (
+      representatives.some((representative) =>
+        areRelatedKeywordPhrases(representative.keyword, keyword.keyword)
+      )
+    ) {
+      continue;
+    }
+
+    representatives.push(keyword);
+
+    if (representatives.length >= limit) {
+      break;
+    }
+  }
+
+  return representatives;
+}
+
 function filterMayorCandidates(
   candidates: Candidate[],
   filters: MayorPledgeFilter,
@@ -616,6 +962,10 @@ function filterMayorCandidates(
     }
 
     if (filters.regionName && candidate.regionName !== filters.regionName) {
+      return false;
+    }
+
+    if (filters.districtName && candidate.districtName !== filters.districtName) {
       return false;
     }
 
@@ -647,11 +997,17 @@ function buildCandidateKeywordSummaries(
   return candidates
     .map((candidate) => {
       const candidatePledges = pledgeItemsByCandidate[candidate.id] ?? [];
-      const phraseKeywords = summarizeMayorPhraseStats(candidatePledges, 1)
-        .slice(0, 5)
+      const phraseKeywords = selectRepresentativeKeywords(
+        summarizeMayorPhraseStats(candidatePledges, candidates.length),
+        5
+      )
         .map((keyword) => keyword.keyword);
-      const fallbackKeywords = summarizeMayorKeywordStats(candidatePledges)
-        .slice(0, 5)
+      const fallbackKeywords = selectRepresentativeKeywords(
+        summarizeMayorKeywordStats(candidatePledges, {
+          scoringCandidateCount: candidates.length
+        }),
+        5
+      )
         .map((keyword) => keyword.keyword);
 
       return {
@@ -705,10 +1061,12 @@ export function analyzeMayorPledges(
   );
   const keywords =
     phraseKeywords.length > 0
-      ? phraseKeywords
-      : summarizeMayorKeywordStats(pledgeItems, {
-          scoringCandidateCount: filteredCandidates.length
-        });
+      ? selectRepresentativeKeywords(phraseKeywords)
+      : selectRepresentativeKeywords(
+          summarizeMayorKeywordStats(pledgeItems, {
+            scoringCandidateCount: filteredCandidates.length
+          })
+        );
 
   return {
     candidates: filteredCandidates,
@@ -743,9 +1101,10 @@ export function compareKeywordsByPledgeCount(
 export function prepareMayorPledgeClientAnalysis(
   analysis: MayorPledgeClientAnalysis
 ): MayorPledgeClientAnalysis {
-  const keywords = [...analysis.keywords]
-    .sort(compareKeywordsByPledgeCount)
-    .slice(0, MAYOR_CLIENT_KEYWORD_LIMIT);
+  const keywords = selectRepresentativeKeywords(
+    analysis.keywords,
+    MAYOR_CLIENT_KEYWORD_LIMIT
+  );
   const selectableKeywords = new Set([
     ...keywords.map((keyword) => keyword.keyword),
     ...analysis.candidateKeywords.flatMap((candidate) => candidate.keywords)
