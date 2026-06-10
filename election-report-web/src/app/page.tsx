@@ -1278,10 +1278,12 @@ function LandingFooter() {
         </p>
       </div>
       <nav aria-label="랜딩 하단 링크" className="landing-footer-links">
-        <Link href="/candidates/search">후보자 검색</Link>
-        <Link href="/?election=regional-executive">공약 분석</Link>
-        <Link href="/analysis/education-wordcloud">교육감 키워드</Link>
+        <Link href="/#project-background">프로젝트배경</Link>
+        <Link href="/#analysis-method">분석방법</Link>
         <Link href="/#data-source">데이터 출처</Link>
+        <a href="https://github.com/sponsors/Ficstory" rel="noreferrer" target="_blank">
+          개발자에게 커피사주기
+        </a>
       </nav>
       <p>© 정치한번 읽어볼까. All rights reserved.</p>
     </footer>
@@ -1296,7 +1298,11 @@ function ProjectLanding({
   return (
     <div className="landing-layout">
       <main className="page-shell landing-page">
-        <section className="landing-hero" aria-labelledby="landing-title">
+        <section
+          className="landing-hero"
+          aria-labelledby="landing-title"
+          id="project-background"
+        >
           <div className="landing-hero-copy">
             <p className="eyebrow">중앙선거관리위원회 공개데이터 기반</p>
             <h1 id="landing-title">선거 공약과 결과를 함께 읽는 페이지</h1>
