@@ -49,8 +49,10 @@ describe("CandidateMaterials", () => {
     expect(markup).toContain("선거공보");
     expect(markup).toContain("선거공약서");
     expect(markup).toContain("원문 보기");
+    expect(markup).toContain('href="/materials/bulletin"');
     expect(markup).toContain("자료 준비 중");
 
+    expect(markup).not.toContain("https://cdn.example.test/bulletin.pdf");
     expect(markup).not.toContain("메타데이터");
     expect(markup).not.toContain("다운로드 완료");
     expect(markup).not.toContain("CDN");

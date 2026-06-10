@@ -147,12 +147,13 @@ describe("mayor pledge analysis", () => {
 
     const analysis = analyzeMayorPledges(candidates, {});
     const keywords = analysis.keywords.map((keyword) => keyword.keyword);
+    const keywordText = keywords.join(" ");
 
     expect(analysis.pledgeItems).toHaveLength(1);
-    expect(keywords).toContain("교통");
-    expect(keywords).toContain("버스");
-    expect(keywords).not.toContain("지원");
-    expect(keywords).not.toContain("확대");
+    expect(keywords.some((keyword) => keyword.includes("교통"))).toBe(true);
+    expect(keywords.some((keyword) => keyword.includes("버스"))).toBe(true);
+    expect(keywordText).not.toContain("지원");
+    expect(keywordText).not.toContain("확대");
     expect(keywords).not.toContain("학교");
   });
 
@@ -198,7 +199,11 @@ describe("mayor pledge analysis", () => {
       "seoul-a"
     ]);
     expect(analysis.pledgeItems.map((pledge) => pledge.id)).toEqual(["a-1"]);
-    expect(analysis.keywords.map((keyword) => keyword.keyword)).toContain("창업");
+    expect(
+      analysis.keywords
+        .map((keyword) => keyword.keyword)
+        .some((keyword) => keyword.includes("창업"))
+    ).toBe(true);
   });
 
   it("reuses a pre-normalized stopword set during tokenization", () => {
@@ -229,14 +234,19 @@ describe("mayor pledge analysis", () => {
       {}
     );
 
-    expect(analysis.pledgeItems[0].keywords).toEqual([
+    expect(analysis.pledgeItems[0].keywordTokens).toEqual(
+      expect.arrayContaining([
       "green",
       "transit",
       "housing",
       "support"
-    ]);
-    expect(analysis.keywords.map((keyword) => keyword.keyword)).toContain("transit");
-    expect(analysis.candidateKeywords[0].keywords).toContain("transit");
+      ])
+    );
+    expect(analysis.pledgeItems[0].keywords).toContain("green transit");
+    expect(analysis.keywords.map((keyword) => keyword.keyword)).toContain(
+      "green transit"
+    );
+    expect(analysis.candidateKeywords[0].keywords).toContain("green transit");
   });
 
   it("compacts mayor analysis before passing it to the client component", () => {
@@ -277,6 +287,36 @@ describe("mayor pledge analysis", () => {
     expect(analysis.keywords).toHaveLength(34);
     expect(analysis.pledgeItems[0].keywords).toEqual(["transit"]);
     expect(analysis.pledgeItems[0].pledgeText.length).toBeLessThanOrEqual(173);
+  });
+
+  it("keeps the highest pledge-count keywords in the client payload", () => {
+    const analysis = prepareMayorPledgeClientAnalysis({
+      candidateKeywords: [],
+      keywords: [
+        ...Array.from({ length: 34 }, (_, index) => ({
+          candidateCount: 1,
+          count: 34 - index,
+          keyword: `keyword-${index + 1}`,
+          pledgeCount: 34 - index,
+          score: 100 - index
+        })),
+        {
+          candidateCount: 1,
+          count: 100,
+          keyword: "late high-count keyword",
+          pledgeCount: 100,
+          score: 1
+        }
+      ],
+      pledgeItems: [],
+      policyCategories: []
+    });
+
+    expect(analysis.keywords).toHaveLength(34);
+    expect(analysis.keywords[0].keyword).toBe("late high-count keyword");
+    expect(analysis.keywords.map((keyword) => keyword.keyword)).not.toContain(
+      "keyword-34"
+    );
   });
 
   it("classifies policy categories without per-keyword rule normalization", () => {

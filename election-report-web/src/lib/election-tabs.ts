@@ -24,7 +24,7 @@ export const electionTabs: Array<{
   {
     id: "education",
     label: "교육감",
-    description: "교육감"
+    description: "시·도 교육감"
   },
   {
     id: "regional-executive",

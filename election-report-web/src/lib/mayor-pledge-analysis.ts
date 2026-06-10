@@ -1,4 +1,8 @@
 import type { Candidate, Pledge } from "../types/election";
+import {
+  candidateElectionBulletinViewerUrl,
+  candidateTopFivePledgeViewerUrl
+} from "./campaign-material-viewer.ts";
 
 export type MayorPledgeFilter = {
   candidateId?: string;
@@ -20,6 +24,8 @@ export type MayorPledgeItem = {
   pledgeText: string;
   keywords: string[];
   keywordTokens?: string[];
+  phraseTokens?: string[];
+  electionBulletinUrl?: string;
   materialUrl?: string;
 };
 
@@ -28,6 +34,8 @@ export type MayorKeyword = {
   count: number;
   pledgeCount: number;
   candidateCount: number;
+  candidateRate?: number;
+  score?: number;
 };
 
 export type CandidateKeywordSummary = {
@@ -98,6 +106,97 @@ export const mayorKeywordStopwords = [
   "행복",
   "미래",
   "함께"
+];
+
+export const pledgeTemplateStopwords = [
+  "공약",
+  "공약명",
+  "공약순위",
+  "분야",
+  "목표",
+  "제목",
+  "개요",
+  "현황",
+  "문제점",
+  "개선방안",
+  "세부내용",
+  "추진계획",
+  "추진일정",
+  "추진",
+  "계획",
+  "이행",
+  "이행기간",
+  "이행방법",
+  "임기",
+  "임기내",
+  "임기후",
+  "재원",
+  "조달",
+  "방안",
+  "재원조달",
+  "재원조달방안",
+  "기간",
+  "소요예산",
+  "사업비",
+  "예산",
+  "국비",
+  "도비",
+  "시비",
+  "군비",
+  "구비",
+  "민자",
+  "기대효과",
+  "기타",
+  "해당없음",
+  "없음",
+  "민선",
+  "취임",
+  "즉시",
+  "상반기",
+  "하반기",
+  "기본계획",
+  "수립",
+  "조례",
+  "제정",
+  "단기",
+  "중기",
+  "장기",
+  "단계적",
+  "준비하여",
+  "재정사업",
+  "재정",
+  "적극",
+  "확보",
+  "타당성",
+  "조사",
+  "관계기관",
+  "협의",
+  "연계",
+  "통해",
+  "경우",
+  "기존",
+  "또는",
+  "모니터링",
+  "행정지원",
+  "편성",
+  "활용",
+  "개정",
+  "시행",
+  "직후",
+  "당선",
+  "전국",
+  "최초",
+  "검토",
+  "완료",
+  "계속",
+  "신규",
+  "goal",
+  "execution",
+  "period",
+  "method",
+  "budget",
+  "funding",
+  "plan"
 ];
 
 export const policyCategoryRules = [
@@ -172,10 +271,11 @@ function candidateLocation(candidate: Candidate) {
 }
 
 function candidateMaterialUrl(candidate: Candidate) {
-  return (
-    candidate.material.pdfUrl ??
-    candidate.material.materials?.find((material) => material.sourceUrl)?.sourceUrl
-  );
+  return candidateTopFivePledgeViewerUrl(candidate);
+}
+
+function candidateElectionBulletinUrl(candidate: Candidate) {
+  return candidateElectionBulletinViewerUrl(candidate);
 }
 
 function matchesLegacyMayorOfficeName(candidate: Candidate) {
@@ -243,7 +343,7 @@ function includesQuery(pledge: Pledge, query: string | undefined) {
 export function normalizeKoreanKeyword(token: string) {
   const compactToken = token
     .normalize("NFKC")
-    .replace(/^[^0-9A-Za-z가-힣]+|[^0-9A-Za-z가-힣]+$/g, "")
+    .replace(/^[^\p{L}\p{N}]+|[^\p{L}\p{N}]+$/gu, "")
     .toLocaleLowerCase("ko-KR");
 
   if (!compactToken) {
@@ -267,6 +367,7 @@ export function createKeywordStopwordSet(extraStopwords: Iterable<string> = []) 
   const stopwordCandidates = [
     ...commonKeywordStopwords,
     ...mayorKeywordStopwords,
+    ...pledgeTemplateStopwords,
     ...extraStopwords
   ];
 
@@ -288,7 +389,7 @@ export function tokenizePledgeText(
       : createKeywordStopwordSet(extraStopwords);
 
   return text
-    .replace(/[^\dA-Za-z가-힣]+/g, " ")
+    .replace(/[^\p{L}\p{N}]+/gu, " ")
     .split(/\s+/)
     .map(normalizeKoreanKeyword)
     .filter((token) => {
@@ -300,8 +401,51 @@ export function tokenizePledgeText(
         return false;
       }
 
+      if (/^\d{2,4}년$|^\d{1,2}월$|^\d+기$/.test(token)) {
+        return false;
+      }
+
+      if (/\d/.test(token) && !/^(1인가구|2차전지|4차산업|5g)$/i.test(token)) {
+        return false;
+      }
+
       return !stopwords.has(token);
     });
+}
+
+function phraseTokenLength(token: string) {
+  return [...token].length;
+}
+
+function hasEnoughPolicySignal(tokens: string[]) {
+  return tokens.some((token) => phraseTokenLength(token) >= 2);
+}
+
+export function extractPolicyPhrasesFromTokens(tokens: string[]) {
+  const phrases: string[] = [];
+
+  for (let size = 2; size <= 4; size += 1) {
+    for (let index = 0; index <= tokens.length - size; index += 1) {
+      const phraseTokens = tokens.slice(index, index + size);
+      const uniqueTokenCount = new Set(phraseTokens).size;
+
+      if (!hasEnoughPolicySignal(phraseTokens)) {
+        continue;
+      }
+
+      if (uniqueTokenCount === 1) {
+        continue;
+      }
+
+      if (size >= 3 && uniqueTokenCount < size) {
+        continue;
+      }
+
+      phrases.push(phraseTokens.join(" "));
+    }
+  }
+
+  return [...new Set(phrases)];
 }
 
 function candidateStopwords(candidates: Candidate[]) {
@@ -326,6 +470,7 @@ function buildPledgeItems(
       .map((pledge) => {
         const text = pledgeText(pledge);
         const keywordTokens = tokenizePledgeText(text, stopwords);
+        const phraseTokens = extractPolicyPhrasesFromTokens(keywordTokens);
 
         return {
           id: pledge.id,
@@ -338,15 +483,38 @@ function buildPledgeItems(
           pledgeTitle: pledge.title,
           pledgeSummary: pledge.summary,
           pledgeText: text,
-          keywords: [...new Set(keywordTokens)],
+          keywords: [...new Set([...phraseTokens, ...keywordTokens])],
           keywordTokens,
+          phraseTokens,
+          electionBulletinUrl: candidateElectionBulletinUrl(candidate),
           materialUrl: candidateMaterialUrl(candidate)
         } satisfies MayorPledgeItem;
       })
   );
 }
 
-function keywordStats(pledgeItems: MayorPledgeItem[]) {
+function tokenSourceFor(
+  pledge: MayorPledgeItem,
+  tokenSource: "keywordTokens" | "phraseTokens" | "keywords"
+) {
+  switch (tokenSource) {
+    case "phraseTokens":
+      return pledge.phraseTokens ?? [];
+    case "keywords":
+      return pledge.keywords;
+    case "keywordTokens":
+    default:
+      return pledge.keywordTokens ?? pledge.keywords;
+  }
+}
+
+export function summarizeMayorKeywordStats(
+  pledgeItems: MayorPledgeItem[],
+  options: {
+    scoringCandidateCount?: number;
+    tokenSource?: "keywordTokens" | "phraseTokens" | "keywords";
+  } = {}
+) {
   const stats = new Map<
     string,
     {
@@ -355,11 +523,15 @@ function keywordStats(pledgeItems: MayorPledgeItem[]) {
       candidateIds: Set<string>;
     }
   >();
+  const tokenSource = options.tokenSource ?? "keywordTokens";
+  const totalCandidateCount =
+    options.scoringCandidateCount ??
+    new Set(pledgeItems.map((pledge) => pledge.candidateId)).size;
 
   for (const pledge of pledgeItems) {
     const pledgeKeywords = new Set<string>();
 
-    for (const token of pledge.keywordTokens ?? pledge.keywords) {
+    for (const token of tokenSourceFor(pledge, tokenSource)) {
       const current =
         stats.get(token) ??
         {
@@ -376,19 +548,61 @@ function keywordStats(pledgeItems: MayorPledgeItem[]) {
     }
   }
 
-  return [...stats.entries()]
-    .map(([keyword, value]) => ({
-      keyword,
-      count: value.count,
-      pledgeCount: value.pledgeIds.size,
-      candidateCount: value.candidateIds.size
-    }))
+  const entries = [...stats.entries()].filter(([, value]) => {
+    if (tokenSource !== "phraseTokens" || totalCandidateCount <= 20) {
+      return true;
+    }
+
+    return value.count >= 2 || value.candidateIds.size >= 2;
+  });
+
+  return entries
+    .map(([keyword, value]) => {
+      const candidateCount = value.candidateIds.size;
+      const candidateRate =
+        totalCandidateCount > 0 ? candidateCount / totalCandidateCount : 0;
+      const idf = Math.log((totalCandidateCount + 1) / (candidateCount + 1)) + 1;
+      const phraseLength = keyword.split(/\s+/).length;
+      const phraseLengthWeight =
+        tokenSource === "phraseTokens"
+          ? phraseLength === 2
+            ? 1.15
+            : phraseLength === 3
+              ? 1
+              : 0.85
+          : 1;
+      const score =
+        Math.log1p(value.count) *
+        idf *
+        (0.5 + Math.min(candidateRate, 0.4)) *
+        phraseLengthWeight;
+
+      return {
+        keyword,
+        candidateCount,
+        candidateRate: Number(candidateRate.toFixed(4)),
+        count: value.count,
+        pledgeCount: value.pledgeIds.size,
+        score: Number(score.toFixed(4))
+      };
+    })
     .sort(
       (left, right) =>
+        (right.score ?? 0) - (left.score ?? 0) ||
         right.count - left.count ||
         right.pledgeCount - left.pledgeCount ||
         left.keyword.localeCompare(right.keyword, "ko")
     );
+}
+
+export function summarizeMayorPhraseStats(
+  pledgeItems: MayorPledgeItem[],
+  scoringCandidateCount?: number
+) {
+  return summarizeMayorKeywordStats(pledgeItems, {
+    scoringCandidateCount,
+    tokenSource: "phraseTokens"
+  });
 }
 
 function filterMayorCandidates(
@@ -433,7 +647,10 @@ function buildCandidateKeywordSummaries(
   return candidates
     .map((candidate) => {
       const candidatePledges = pledgeItemsByCandidate[candidate.id] ?? [];
-      const keywords = keywordStats(candidatePledges)
+      const phraseKeywords = summarizeMayorPhraseStats(candidatePledges, 1)
+        .slice(0, 5)
+        .map((keyword) => keyword.keyword);
+      const fallbackKeywords = summarizeMayorKeywordStats(candidatePledges)
         .slice(0, 5)
         .map((keyword) => keyword.keyword);
 
@@ -442,7 +659,7 @@ function buildCandidateKeywordSummaries(
         candidateName: candidate.candidateName,
         partyName: candidate.partyName,
         regionName: candidateLocation(candidate),
-        keywords
+        keywords: phraseKeywords.length > 0 ? phraseKeywords : fallbackKeywords
       };
     })
     .filter((candidate) => candidate.keywords.length > 0);
@@ -482,7 +699,16 @@ export function analyzeMayorPledges(
   );
   const stopwords = createKeywordStopwordSet(candidateStopwords(filteredCandidates));
   const pledgeItems = buildPledgeItems(filteredCandidates, filters.query, stopwords);
-  const keywords = keywordStats(pledgeItems);
+  const phraseKeywords = summarizeMayorPhraseStats(
+    pledgeItems,
+    filteredCandidates.length
+  );
+  const keywords =
+    phraseKeywords.length > 0
+      ? phraseKeywords
+      : summarizeMayorKeywordStats(pledgeItems, {
+          scoringCandidateCount: filteredCandidates.length
+        });
 
   return {
     candidates: filteredCandidates,
@@ -502,10 +728,24 @@ function compactPledgeText(text: string) {
     : text;
 }
 
+export function compareKeywordsByPledgeCount(
+  left: MayorKeyword,
+  right: MayorKeyword
+) {
+  return (
+    right.pledgeCount - left.pledgeCount ||
+    right.count - left.count ||
+    right.candidateCount - left.candidateCount ||
+    left.keyword.localeCompare(right.keyword, "ko")
+  );
+}
+
 export function prepareMayorPledgeClientAnalysis(
   analysis: MayorPledgeClientAnalysis
 ): MayorPledgeClientAnalysis {
-  const keywords = analysis.keywords.slice(0, MAYOR_CLIENT_KEYWORD_LIMIT);
+  const keywords = [...analysis.keywords]
+    .sort(compareKeywordsByPledgeCount)
+    .slice(0, MAYOR_CLIENT_KEYWORD_LIMIT);
   const selectableKeywords = new Set([
     ...keywords.map((keyword) => keyword.keyword),
     ...analysis.candidateKeywords.flatMap((candidate) => candidate.keywords)
@@ -522,6 +762,7 @@ export function prepareMayorPledgeClientAnalysis(
       };
 
       delete compactedPledge.keywordTokens;
+      delete compactedPledge.phraseTokens;
       return compactedPledge;
     }),
     policyCategories: analysis.policyCategories

@@ -4,6 +4,8 @@ import { PrismaClient, type Prisma } from "@prisma/client";
 import type {
   Candidate,
   CandidateCampaignMaterial,
+  CandidateCriminalRecordStatus,
+  CandidateElectionResultStatus,
   CampaignMaterialAnalysis,
   OfficeType,
   Pledge
@@ -50,10 +52,14 @@ type DbCandidate = Prisma.CandidateGetPayload<{
     };
     rawApiResponse: true;
     region: true;
+    result: true;
+    disclosureAnalysis: true;
   };
 }>;
 
 export type CandidateListFilters = {
+  criminalRecordStatus?: CandidateCriminalRecordStatus;
+  electionResultStatus?: CandidateElectionResultStatus;
   officeType?: OfficeType;
   partyName?: string;
   query?: string;
@@ -216,6 +222,41 @@ function candidateCareers(candidate: DbCandidate): string[] {
   );
 }
 
+function mapElectionResult(result: DbCandidate["result"]): Candidate["result"] {
+  if (!result) {
+    return undefined;
+  }
+
+  return {
+    elected: result.elected,
+    rank: result.rank ?? undefined,
+    voteCount: result.voteCount ?? undefined,
+    voteRate: result.voteRate == null ? undefined : Number(result.voteRate)
+  };
+}
+
+function mapCriminalRecord(
+  disclosure: DbCandidate["disclosureAnalysis"]
+): Candidate["criminalRecord"] {
+  if (!disclosure) {
+    return undefined;
+  }
+
+  return {
+    analyzedAt: disclosure.analyzedAt?.toISOString(),
+    excerpt: disclosure.criminalRecordExcerpt ?? undefined,
+    offenses: jsonStringArray(disclosure.criminalOffenses),
+    pageCount: disclosure.pageCount ?? undefined,
+    punishments: jsonStringArray(disclosure.criminalPunishments),
+    recordCount: disclosure.criminalRecordCount ?? undefined,
+    sourceMaterialId: disclosure.sourceMaterialId ?? undefined,
+    sourceMaterialPath: disclosure.sourceMaterialPath ?? undefined,
+    status: disclosure.criminalRecordStatus as CandidateCriminalRecordStatus,
+    summary: disclosure.criminalRecordSummary ?? "전과기록 분석 전",
+    textCharCount: disclosure.textCharCount ?? undefined
+  };
+}
+
 function mapCandidate(candidate: DbCandidate): Candidate {
   const officeType = officeTypeFromSgTypecode(candidate.electionType.sgTypecode);
   const fetchedAt = candidate.rawApiResponse?.fetchedAt.toISOString();
@@ -239,6 +280,8 @@ function mapCandidate(candidate: DbCandidate): Candidate {
     careers: candidateCareers(candidate),
     pledges: candidate.pledges.map(mapPledge),
     material: mapMaterial(candidate.materials),
+    result: mapElectionResult(candidate.result),
+    criminalRecord: mapCriminalRecord(candidate.disclosureAnalysis),
     source: {
       candidateApiId: candidate.candidateApiId ?? undefined,
       pledgeApiId: candidate.candidateApiId ?? undefined,
@@ -285,7 +328,9 @@ export async function listElectionCandidates(): Promise<Candidate[]> {
         orderBy: [{ materialType: "asc" }, { title: "asc" }, { createdAt: "asc" }]
       },
       rawApiResponse: true,
-      region: true
+      region: true,
+      result: true,
+      disclosureAnalysis: true
     }
   });
 
@@ -314,7 +359,9 @@ export async function listElectionCandidatesByFilters(
         orderBy: [{ materialType: "asc" }, { title: "asc" }, { createdAt: "asc" }]
       },
       rawApiResponse: true,
-      region: true
+      region: true,
+      result: true,
+      disclosureAnalysis: true
     }
   });
 
@@ -371,6 +418,12 @@ function buildCandidateWhere(
 ): Prisma.CandidateWhereInput {
   const sgTypecode = sgTypecodeFromOfficeType(filters.officeType);
   const query = filters.query?.trim();
+  const scopedConditions = [
+    buildElectionResultWhere(filters.electionResultStatus),
+    buildCandidateQueryWhere(query)
+  ].filter((condition): condition is Prisma.CandidateWhereInput =>
+    Boolean(condition)
+  );
 
   return {
     ...(electionId ? { electionId } : {}),
@@ -395,42 +448,99 @@ function buildCandidateWhere(
           }
         }
       : {}),
-    ...(query
+    ...(filters.criminalRecordStatus
       ? {
-          OR: [
-            {
-              name: {
-                contains: query,
-                mode: "insensitive"
-              }
-            },
-            {
-              party: {
-                name: {
-                  contains: query,
-                  mode: "insensitive"
-                }
-              }
-            },
-            {
-              region: {
-                name: {
-                  contains: query,
-                  mode: "insensitive"
-                }
-              }
-            },
-            {
-              district: {
-                name: {
-                  contains: query,
-                  mode: "insensitive"
-                }
+          disclosureAnalysis: {
+            criminalRecordStatus: filters.criminalRecordStatus
+          }
+        }
+      : {}),
+    ...(scopedConditions.length > 0 ? { AND: scopedConditions } : {})
+  };
+}
+
+function buildElectionResultWhere(
+  status: CandidateElectionResultStatus | undefined
+): Prisma.CandidateWhereInput | undefined {
+  switch (status) {
+    case "ELECTED":
+      return {
+        result: {
+          is: {
+            elected: true
+          }
+        }
+      };
+    case "NOT_ELECTED":
+      return {
+        result: {
+          is: {
+            elected: false
+          }
+        }
+      };
+    case "UNKNOWN":
+      return {
+        OR: [
+          {
+            result: {
+              is: null
+            }
+          },
+          {
+            result: {
+              is: {
+                elected: null
               }
             }
-          ]
+          }
+        ]
+      };
+    default:
+      return undefined;
+  }
+}
+
+function buildCandidateQueryWhere(
+  query: string | undefined
+): Prisma.CandidateWhereInput | undefined {
+  if (!query) {
+    return undefined;
+  }
+
+  return {
+    OR: [
+      {
+        name: {
+          contains: query,
+          mode: "insensitive"
         }
-      : {})
+      },
+      {
+        party: {
+          name: {
+            contains: query,
+            mode: "insensitive"
+          }
+        }
+      },
+      {
+        region: {
+          name: {
+            contains: query,
+            mode: "insensitive"
+          }
+        }
+      },
+      {
+        district: {
+          name: {
+            contains: query,
+            mode: "insensitive"
+          }
+        }
+      }
+    ]
   };
 }
 
@@ -464,7 +574,9 @@ export async function listElectionCandidatePage({
         orderBy: [{ materialType: "asc" }, { title: "asc" }, { createdAt: "asc" }]
       },
       rawApiResponse: true,
-      region: true
+      region: true,
+      result: true,
+      disclosureAnalysis: true
     },
     orderBy: [
       { electionType: { sgTypecode: "asc" } },
@@ -493,7 +605,9 @@ export async function listElectionCandidatePage({
         orderBy: [{ materialType: "asc" }, { title: "asc" }, { createdAt: "asc" }]
       },
       rawApiResponse: true,
-      region: true
+      region: true,
+      result: true,
+      disclosureAnalysis: true
     }
   });
   const regions = await prisma.region.findMany({
@@ -566,7 +680,9 @@ export async function getElectionCandidateById(
         orderBy: [{ materialType: "asc" }, { title: "asc" }, { createdAt: "asc" }]
       },
       rawApiResponse: true,
-      region: true
+      region: true,
+      result: true,
+      disclosureAnalysis: true
     }
   });
 

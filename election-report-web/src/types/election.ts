@@ -51,6 +51,38 @@ export type CampaignMaterialAnalysis = {
   layoutNotes: string;
 };
 
+export type CandidateElectionResult = {
+  elected: boolean | null;
+  voteCount?: number;
+  voteRate?: number;
+  rank?: number;
+};
+
+export type CandidateElectionResultStatus =
+  | "ELECTED"
+  | "NOT_ELECTED"
+  | "UNKNOWN";
+
+export type CandidateCriminalRecordStatus =
+  | "HAS_RECORD"
+  | "NONE"
+  | "UNKNOWN"
+  | "UNAVAILABLE";
+
+export type CandidateCriminalRecordDisclosure = {
+  analyzedAt?: string;
+  excerpt?: string;
+  offenses: string[];
+  pageCount?: number;
+  punishments: string[];
+  recordCount?: number;
+  sourceMaterialId?: string;
+  sourceMaterialPath?: string;
+  status: CandidateCriminalRecordStatus;
+  summary: string;
+  textCharCount?: number;
+};
+
 export type Candidate = {
   id: string;
   electionId: string;
@@ -70,6 +102,8 @@ export type Candidate = {
   careers: string[];
   pledges: Pledge[];
   material: CampaignMaterialAnalysis;
+  result?: CandidateElectionResult;
+  criminalRecord?: CandidateCriminalRecordDisclosure;
   source: {
     candidateApiId?: string;
     pledgeApiId?: string;

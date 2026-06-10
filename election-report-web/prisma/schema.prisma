@@ -7,11 +7,11 @@ datasource db {
 }
 
 model Election {
-  id        String   @id @db.VarChar(8)
+  id        String    @id @db.VarChar(8)
   name      String
   voteDate  DateTime?
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
 
   candidates    Candidate[]
   electionTypes ElectionType[]
@@ -89,15 +89,16 @@ model Candidate {
   createdAt        DateTime @default(now())
   updatedAt        DateTime @updatedAt
 
-  district       District?       @relation(fields: [districtId], references: [id], onDelete: SetNull)
-  election       Election        @relation(fields: [electionId], references: [id], onDelete: Cascade)
-  electionType   ElectionType    @relation(fields: [electionTypeId], references: [id], onDelete: Cascade)
-  party          Party?          @relation(fields: [partyId], references: [id], onDelete: SetNull)
-  rawApiResponse RawApiResponse? @relation(fields: [rawApiResponseId], references: [id], onDelete: SetNull)
-  region         Region?         @relation(fields: [regionId], references: [id], onDelete: SetNull)
-  materials      CampaignMaterial[]
-  pledges        Pledge[]
-  result         ElectionResult?
+  district           District?                    @relation(fields: [districtId], references: [id], onDelete: SetNull)
+  election           Election                     @relation(fields: [electionId], references: [id], onDelete: Cascade)
+  electionType       ElectionType                 @relation(fields: [electionTypeId], references: [id], onDelete: Cascade)
+  party              Party?                       @relation(fields: [partyId], references: [id], onDelete: SetNull)
+  rawApiResponse     RawApiResponse?              @relation(fields: [rawApiResponseId], references: [id], onDelete: SetNull)
+  region             Region?                      @relation(fields: [regionId], references: [id], onDelete: SetNull)
+  materials          CampaignMaterial[]
+  pledges            Pledge[]
+  result             ElectionResult?
+  disclosureAnalysis CandidateDisclosureAnalysis?
 
   @@unique([electionId, electionTypeId, candidateApiId])
   @@index([name])
@@ -185,12 +186,12 @@ model CampaignMaterial {
   candidate Candidate               @relation(fields: [candidateId], references: [id], onDelete: Cascade)
   analysis  MaterialDesignAnalysis?
 
+  @@unique([sourceSystem, sourceMaterialId])
   @@index([candidateId])
   @@index([materialType])
   @@index([downloadStatus])
   @@index([sourceMaterialId])
   @@index([sha256])
-  @@unique([sourceSystem, sourceMaterialId])
 }
 
 model MaterialDesignAnalysis {
@@ -225,4 +226,27 @@ model ElectionResult {
   sourceRawApiResponse RawApiResponse? @relation("ElectionResultRawSource", fields: [sourceRawApiResponseId], references: [id], onDelete: SetNull)
 
   @@index([electionId])
+}
+
+model CandidateDisclosureAnalysis {
+  id                    String    @id @default(cuid())
+  candidateId           String    @unique
+  sourceMaterialId      String?
+  sourceMaterialPath    String?
+  criminalRecordStatus  String    @default("UNKNOWN")
+  criminalRecordCount   Int?
+  criminalRecordSummary String?
+  criminalRecordExcerpt String?
+  criminalOffenses      Json?
+  criminalPunishments   Json?
+  pageCount             Int?
+  textCharCount         Int?
+  analyzedAt            DateTime?
+  createdAt             DateTime  @default(now())
+  updatedAt             DateTime  @updatedAt
+
+  candidate Candidate @relation(fields: [candidateId], references: [id], onDelete: Cascade)
+
+  @@index([criminalRecordStatus])
+  @@index([criminalRecordCount])
 }

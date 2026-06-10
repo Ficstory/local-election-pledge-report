@@ -4,12 +4,16 @@ import { describe, expect, it } from "vitest";
 import { MayorPledgeAnalysis } from "./MayorPledgeAnalysis";
 import type { MayorKeyword, MayorPledgeItem } from "../lib/mayor-pledge-analysis";
 
-function makeKeyword(index: number): MayorKeyword {
+function makeKeyword(
+  index: number,
+  overrides: Partial<MayorKeyword> = {}
+): MayorKeyword {
   return {
     candidateCount: index,
     count: 100 - index,
     keyword: `keyword-${index}`,
-    pledgeCount: 50 - index
+    pledgeCount: 50 - index,
+    ...overrides
   };
 }
 
@@ -59,6 +63,46 @@ describe("MayorPledgeAnalysis", () => {
 
     expect(markup).toContain("TOP 10");
     expect(markup.match(/keyword-rank-row/g)).toHaveLength(10);
+  });
+
+  it("orders the ranked keyword panel by pledge count and shows that metric", () => {
+    const markup = renderToStaticMarkup(
+      <MayorPledgeAnalysis
+        analysis={{
+          candidateKeywords: [],
+          keywords: [
+            makeKeyword(1, {
+              count: 69,
+              keyword: "민간 자본",
+              pledgeCount: 69
+            }),
+            makeKeyword(2, {
+              count: 275,
+              keyword: "일자리 창출",
+              pledgeCount: 275
+            }),
+            makeKeyword(3, {
+              count: 100,
+              keyword: "양질 일자리",
+              pledgeCount: 100
+            })
+          ],
+          pledgeItems: [makePledge()],
+          policyCategories: []
+        }}
+        filters={{}}
+        options={{ candidates: [], parties: [], regions: [] }}
+      />
+    );
+
+    expect(markup.indexOf("일자리 창출")).toBeLessThan(
+      markup.indexOf("양질 일자리")
+    );
+    expect(markup.indexOf("양질 일자리")).toBeLessThan(
+      markup.indexOf("민간 자본")
+    );
+    expect(markup).toContain("100개 공약");
+    expect(markup).not.toContain("100회");
   });
 
   it("shows pledge results in groups of 5", () => {

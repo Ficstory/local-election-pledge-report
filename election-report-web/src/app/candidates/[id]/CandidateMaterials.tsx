@@ -1,4 +1,5 @@
 import type { CandidateCampaignMaterial } from "../../../types/election";
+import { campaignMaterialViewerUrl } from "../../../lib/campaign-material-viewer";
 
 type CandidateMaterialsProps = {
   materials?: CandidateCampaignMaterial[];
@@ -23,26 +24,30 @@ export function CandidateMaterials({ materials = [] }: CandidateMaterialsProps) 
       </div>
       {materials.length > 0 ? (
         <div className="material-link-list">
-          {materials.map((material) => (
-            <article className="material-link-item" key={material.id}>
-              <div>
-                <strong>{materialTitle(material)}</strong>
-                <span>PDF 자료</span>
-              </div>
-              {material.sourceUrl ? (
-                <a
-                  className="action-button secondary"
-                  href={material.sourceUrl}
-                  rel="noreferrer"
-                  target="_blank"
-                >
-                  원문 보기
-                </a>
-              ) : (
-                <div className="action-button disabled">자료 준비 중</div>
-              )}
-            </article>
-          ))}
+          {materials.map((material) => {
+            const viewerUrl = campaignMaterialViewerUrl(material);
+
+            return (
+              <article className="material-link-item" key={material.id}>
+                <div>
+                  <strong>{materialTitle(material)}</strong>
+                  <span>PDF 자료</span>
+                </div>
+                {viewerUrl ? (
+                  <a
+                    className="action-button secondary"
+                    href={viewerUrl}
+                    rel="noreferrer"
+                    target="_blank"
+                  >
+                    원문 보기
+                  </a>
+                ) : (
+                  <div className="action-button disabled">자료 준비 중</div>
+                )}
+              </article>
+            );
+          })}
         </div>
       ) : (
         <p className="empty-copy">공개된 선거자료가 없습니다.</p>

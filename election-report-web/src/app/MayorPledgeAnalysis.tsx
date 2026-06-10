@@ -9,6 +9,7 @@ import {
   visibleItems
 } from "../lib/incremental-rendering";
 import {
+  compareKeywordsByPledgeCount,
   tokenizePledgeText,
   type MayorKeyword,
   type MayorPledgeClientAnalysis,
@@ -110,6 +111,10 @@ function scopedLimit(window: RenderWindow, scope: string, initialLimit: number) 
   return window.scope === scope ? window.limit : initialLimit;
 }
 
+function maxKeywordCount(keywords: MayorKeyword[]) {
+  return Math.max(1, ...keywords.map((keyword) => keyword.count));
+}
+
 export function MayorPledgeAnalysis({
   analysis: initialAnalysis,
   analysisUrl,
@@ -187,9 +192,13 @@ export function MayorPledgeAnalysis({
     return () => controller.abort();
   }, [analysisUrl, initialAnalysis]);
 
-  const topKeywords = analysis.keywords.slice(0, TOP_KEYWORD_RANK_LIMIT);
-  const cloudKeywords = analysis.keywords.slice(0, 34);
-  const maxCount = cloudKeywords[0]?.count ?? 1;
+  const rankedKeywords = useMemo(
+    () => [...analysis.keywords].sort(compareKeywordsByPledgeCount),
+    [analysis.keywords]
+  );
+  const topKeywords = rankedKeywords.slice(0, TOP_KEYWORD_RANK_LIMIT);
+  const cloudKeywords = rankedKeywords.slice(0, 34);
+  const maxCount = maxKeywordCount(cloudKeywords);
   const visiblePledges = useMemo(
     () =>
       selectedKeyword
@@ -427,7 +436,6 @@ export function MayorPledgeAnalysis({
                   >
                     <span>{index + 1}</span>
                     <strong>{keyword.keyword}</strong>
-                    <em>{keyword.count.toLocaleString("ko-KR")}회</em>
                     <em>{keyword.pledgeCount.toLocaleString("ko-KR")}개 공약</em>
                   </button>
                 ))}
@@ -547,10 +555,26 @@ export function MayorPledgeAnalysis({
                             rel="noreferrer"
                             target="_blank"
                           >
-                            원문 보기
+                            5대공약 보기
                           </a>
                         ) : (
-                          <span className="action-button disabled">원문 준비 중</span>
+                          <span className="action-button disabled">
+                            5대공약 없음
+                          </span>
+                        )}
+                        {pledge.electionBulletinUrl ? (
+                          <a
+                            className="action-button tertiary"
+                            href={pledge.electionBulletinUrl}
+                            rel="noreferrer"
+                            target="_blank"
+                          >
+                            선거공보 보기
+                          </a>
+                        ) : (
+                          <span className="action-button disabled">
+                            선거공보 없음
+                          </span>
                         )}
                         <Link
                           className="action-button primary"

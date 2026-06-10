@@ -3,6 +3,12 @@ import { notFound } from "next/navigation";
 
 import { officeLabels } from "../../../lib/election-stats";
 import { getElectionCandidateById } from "../../../lib/election-db";
+import { candidateElectionBulletinViewerUrl } from "../../../lib/campaign-material-viewer";
+import {
+  criminalRecordClass,
+  criminalRecordDetail,
+  criminalRecordLabel
+} from "../../../lib/candidate-disclosure";
 import type { Pledge } from "../../../types/election";
 import { CandidateMaterials } from "./CandidateMaterials";
 import { CandidateSourceInfo } from "./CandidateSourceInfo";
@@ -98,6 +104,9 @@ export default async function CandidatePage({ params }: CandidatePageProps) {
   if (!candidate) {
     notFound();
   }
+
+  const electionBulletinUrl = candidateElectionBulletinViewerUrl(candidate);
+  const criminalRecord = candidate.criminalRecord;
 
   return (
     <main className="page-shell detail-page">
@@ -198,6 +207,47 @@ export default async function CandidatePage({ params }: CandidatePageProps) {
               <dd>{candidate.material.layoutNotes}</dd>
             </div>
           </dl>
+        </article>
+
+        <article className="panel">
+          <div className="panel-heading">
+            <h2>전과기록 공개자료</h2>
+            <span
+              className={`criminal-record-chip ${criminalRecordClass(
+                criminalRecord
+              )}`}
+            >
+              {criminalRecordLabel(criminalRecord)}
+            </span>
+          </div>
+          <dl className="info-list">
+            <div>
+              <dt>요약</dt>
+              <dd>{criminalRecordDetail(criminalRecord)}</dd>
+            </div>
+            <div>
+              <dt>자료 기준</dt>
+              <dd>선거공보 후보자 정보 공개자료 PDF 텍스트 추출</dd>
+            </div>
+            <div>
+              <dt>선거공보</dt>
+              <dd>
+                {electionBulletinUrl ? (
+                  <a href={electionBulletinUrl} rel="noreferrer" target="_blank">
+                    원문 PDF 보기
+                  </a>
+                ) : (
+                  "원문 PDF 없음"
+                )}
+              </dd>
+            </div>
+          </dl>
+          {criminalRecord?.excerpt ? (
+            <details className="disclosure-excerpt">
+              <summary>추출 구간 보기</summary>
+              <p>{criminalRecord.excerpt}</p>
+            </details>
+          ) : null}
         </article>
       </section>
 
