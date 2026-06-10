@@ -66,8 +66,10 @@ export type MayorPledgeClientAnalysis = Pick<
   "candidateKeywords" | "keywords" | "pledgeItems" | "policyCategories"
 >;
 
-export const MAYOR_CLIENT_KEYWORD_LIMIT = 34;
+export const MAYOR_CLIENT_KEYWORD_LIMIT = 24;
 export const MAYOR_CLIENT_PLEDGE_TEXT_LIMIT = 170;
+const MIN_REPRESENTATIVE_KEYWORD_PLEDGE_COUNT = 2;
+const MIN_REPRESENTATIVE_KEYWORD_CANDIDATE_COUNT = 2;
 
 export const commonKeywordStopwords = [
   "추진",
@@ -157,10 +159,57 @@ export const analysisNoiseStopwords = [
   "받은",
   "받는",
   "받고",
+  "되어",
+  "되고",
+  "되지",
+  "되지않",
+  "않고",
+  "않는",
+  "없어",
+  "없는",
+  "따른",
+  "따라",
+  "이어지",
+  "필요한",
   "않게",
   "어느",
   "가는",
   "butx"
+];
+
+export const pledgeGuideStopwords = [
+  "글씨체",
+  "글씨색",
+  "글꼴",
+  "서체",
+  "색상",
+  "도표",
+  "사진",
+  "홍보",
+  "후보자",
+  "선택",
+  "가능",
+  "작성",
+  "작성법",
+  "제출",
+  "인쇄",
+  "편집",
+  "폰트"
+];
+
+export const implementationSourceStopwords = [
+  "국토교통부",
+  "농림축산식품부",
+  "고용노동부",
+  "보건복지부",
+  "중소벤처기업부",
+  "문화체육관광부",
+  "행정안전부",
+  "환경부",
+  "교육부",
+  "기획재정부",
+  "여성가족부",
+  "중앙부처"
 ];
 
 export const pledgeTemplateStopwords = [
@@ -445,13 +494,21 @@ export function normalizeKoreanKeyword(token: string) {
   }, compactToken);
 
   return withoutParticle.replace(
-    /(하겠습니다|합니다|한다|하기|하여|하고|하며|되는|되도록|하도록|위한|통한|적인|적으로)$/g,
+    /(만들겠습니다|하겠습니다|겠습니다|합니다|한다|하기|하여|하고|하며|되는|되도록|되며|되어|되고|하도록|위한|통한|적인|적으로|가능한|가능)$/g,
     ""
   );
 }
 
-const normalizedAnalysisNoiseStopwords = new Set(
-  analysisNoiseStopwords.map(normalizeKoreanKeyword).filter(Boolean)
+const normalizedQualityStopwords = new Set(
+  [
+    ...analysisNoiseStopwords,
+    ...pledgeTemplateStopwords,
+    ...pledgeGuideStopwords,
+    ...implementationSourceStopwords,
+    ...koreanParticles
+  ]
+    .map(normalizeKoreanKeyword)
+    .filter(Boolean)
 );
 const normalizedPolicyAnchorTerms = new Set(
   policyCategoryRules
@@ -459,6 +516,19 @@ const normalizedPolicyAnchorTerms = new Set(
     .map(normalizeKoreanKeyword)
     .filter(Boolean)
 );
+
+const blockedKeywordTextPatterns = [
+  /글씨/u,
+  /글꼴/u,
+  /서체/u,
+  /색상/u,
+  /도표/u,
+  /후보자\s*사진/u,
+  /사진\s*홍보/u,
+  /선택\s*가능/u,
+  /가능\s*후보자/u,
+  /만들겠습니다/u
+];
 
 const genericPolicyPhrases = new Set([
   "mou 체결",
@@ -505,6 +575,9 @@ export function createKeywordStopwordSet(extraStopwords: Iterable<string> = []) 
     ...mayorKeywordStopwords,
     ...analysisNoiseStopwords,
     ...pledgeTemplateStopwords,
+    ...pledgeGuideStopwords,
+    ...implementationSourceStopwords,
+    ...koreanParticles,
     ...extraStopwords
   ];
 
@@ -571,7 +644,7 @@ export function tokenizePledgeText(
         return false;
       }
 
-      return !stopwords.has(token);
+      return !stopwords.has(token) && !normalizedQualityStopwords.has(token);
     });
 }
 
@@ -584,7 +657,7 @@ function hasEnoughPolicySignal(tokens: string[]) {
 }
 
 function hasBlockedPhraseToken(tokens: string[]) {
-  return tokens.some((token) => normalizedAnalysisNoiseStopwords.has(token));
+  return tokens.some((token) => normalizedQualityStopwords.has(token));
 }
 
 function hasPolicyAnchor(tokens: string[]) {
@@ -631,7 +704,7 @@ export function extractPolicyPhrasesFromTokens(tokens: string[]) {
 
       const phrase = phraseTokens.join(" ");
 
-      if (genericPolicyPhrases.has(phrase)) {
+      if (genericPolicyPhrases.has(phrase) || !isMeaningfulMayorKeyword(phrase)) {
         continue;
       }
 
@@ -640,6 +713,52 @@ export function extractPolicyPhrasesFromTokens(tokens: string[]) {
   }
 
   return [...new Set(phrases)];
+}
+
+function normalizedKeywordTokens(keyword: string) {
+  return keyword
+    .split(/\s+/)
+    .map(normalizeKoreanKeyword)
+    .filter(Boolean);
+}
+
+export function isMeaningfulMayorKeyword(keyword: string) {
+  const compactKeyword = keyword.replace(/\s+/g, "");
+
+  if (!compactKeyword) {
+    return false;
+  }
+
+  if (
+    blockedKeywordTextPatterns.some(
+      (pattern) => pattern.test(keyword) || pattern.test(compactKeyword)
+    )
+  ) {
+    return false;
+  }
+
+  const tokens = normalizedKeywordTokens(keyword);
+
+  if (tokens.length === 0) {
+    return false;
+  }
+
+  return !tokens.some((token) => normalizedQualityStopwords.has(token));
+}
+
+function hasRepresentativeEvidence(keyword: MayorKeyword) {
+  return (
+    keyword.pledgeCount >= MIN_REPRESENTATIVE_KEYWORD_PLEDGE_COUNT ||
+    keyword.candidateCount >= MIN_REPRESENTATIVE_KEYWORD_CANDIDATE_COUNT
+  );
+}
+
+function filterQualityKeywords(keywords: MayorKeyword[]) {
+  return keywords.filter((keyword) => isMeaningfulMayorKeyword(keyword.keyword));
+}
+
+function filterRepresentativeKeywords(keywords: MayorKeyword[]) {
+  return filterQualityKeywords(keywords).filter(hasRepresentativeEvidence);
 }
 
 function candidateStopwords(candidates: Candidate[]) {
@@ -787,6 +906,7 @@ export function summarizeMayorKeywordStats(
         score: Number(score.toFixed(4))
       };
     })
+    .filter((keyword) => isMeaningfulMayorKeyword(keyword.keyword))
     .sort(
       (left, right) =>
         (right.score ?? 0) - (left.score ?? 0) ||
@@ -998,14 +1118,18 @@ function buildCandidateKeywordSummaries(
     .map((candidate) => {
       const candidatePledges = pledgeItemsByCandidate[candidate.id] ?? [];
       const phraseKeywords = selectRepresentativeKeywords(
-        summarizeMayorPhraseStats(candidatePledges, candidates.length),
+        filterQualityKeywords(
+          summarizeMayorPhraseStats(candidatePledges, candidates.length)
+        ),
         5
       )
         .map((keyword) => keyword.keyword);
       const fallbackKeywords = selectRepresentativeKeywords(
-        summarizeMayorKeywordStats(candidatePledges, {
-          scoringCandidateCount: candidates.length
-        }),
+        filterQualityKeywords(
+          summarizeMayorKeywordStats(candidatePledges, {
+            scoringCandidateCount: candidates.length
+          })
+        ),
         5
       )
         .map((keyword) => keyword.keyword);
@@ -1055,17 +1179,18 @@ export function analyzeMayorPledges(
   );
   const stopwords = createKeywordStopwordSet(candidateStopwords(filteredCandidates));
   const pledgeItems = buildPledgeItems(filteredCandidates, filters.query, stopwords);
-  const phraseKeywords = summarizeMayorPhraseStats(
-    pledgeItems,
-    filteredCandidates.length
+  const phraseKeywords = filterRepresentativeKeywords(
+    summarizeMayorPhraseStats(pledgeItems, filteredCandidates.length)
   );
   const keywords =
     phraseKeywords.length > 0
       ? selectRepresentativeKeywords(phraseKeywords)
       : selectRepresentativeKeywords(
-          summarizeMayorKeywordStats(pledgeItems, {
-            scoringCandidateCount: filteredCandidates.length
-          })
+          filterRepresentativeKeywords(
+            summarizeMayorKeywordStats(pledgeItems, {
+              scoringCandidateCount: filteredCandidates.length
+            })
+          )
         );
 
   return {
@@ -1101,22 +1226,37 @@ export function compareKeywordsByPledgeCount(
 export function prepareMayorPledgeClientAnalysis(
   analysis: MayorPledgeClientAnalysis
 ): MayorPledgeClientAnalysis {
+  return sanitizeMayorPledgeClientAnalysis(analysis);
+}
+
+export function sanitizeMayorPledgeClientAnalysis(
+  analysis: MayorPledgeClientAnalysis
+): MayorPledgeClientAnalysis {
   const keywords = selectRepresentativeKeywords(
-    analysis.keywords,
+    filterRepresentativeKeywords(analysis.keywords),
     MAYOR_CLIENT_KEYWORD_LIMIT
   );
+  const candidateKeywords = analysis.candidateKeywords
+    .map((candidate) => ({
+      ...candidate,
+      keywords: candidate.keywords.filter(isMeaningfulMayorKeyword)
+    }))
+    .filter((candidate) => candidate.keywords.length > 0);
   const selectableKeywords = new Set([
     ...keywords.map((keyword) => keyword.keyword),
-    ...analysis.candidateKeywords.flatMap((candidate) => candidate.keywords)
+    ...candidateKeywords.flatMap((candidate) => candidate.keywords)
   ]);
 
   return {
-    candidateKeywords: analysis.candidateKeywords,
+    candidateKeywords,
     keywords,
     pledgeItems: analysis.pledgeItems.map((pledge) => {
       const compactedPledge = {
         ...pledge,
-        keywords: pledge.keywords.filter((keyword) => selectableKeywords.has(keyword)),
+        keywords: pledge.keywords.filter(
+          (keyword) =>
+            selectableKeywords.has(keyword) && isMeaningfulMayorKeyword(keyword)
+        ),
         pledgeText: compactPledgeText(pledge.pledgeText)
       };
 
@@ -1124,6 +1264,6 @@ export function prepareMayorPledgeClientAnalysis(
       delete compactedPledge.phraseTokens;
       return compactedPledge;
     }),
-    policyCategories: analysis.policyCategories
+    policyCategories: classifyPolicyCategories(keywords)
   };
 }

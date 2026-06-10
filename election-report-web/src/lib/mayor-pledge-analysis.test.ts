@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import { performance } from "node:perf_hooks";
 
 import {
+  MAYOR_CLIENT_KEYWORD_LIMIT,
   analyzeMayorPledges,
   classifyPolicyCategories,
   createKeywordStopwordSet,
@@ -111,6 +112,7 @@ describe("mayor pledge analysis", () => {
   it("normalizes Korean particles and removes configurable stopwords", () => {
     expect(normalizeKoreanKeyword("시민에게")).toBe("시민");
     expect(normalizeKoreanKeyword("지역의")).toBe("지역");
+    expect(normalizeKoreanKeyword("만들겠습니다")).toBe("");
     expect(tokenizePledgeText("시민에게 교통 지원 확대 및 주차 개선")).toEqual([
       "교통",
       "주차"
@@ -172,6 +174,13 @@ describe("mayor pledge analysis", () => {
             summary: "창업 공간을 늘립니다.",
             category: "경제",
             details: []
+          },
+          {
+            id: "a-2",
+            title: "청년 창업",
+            summary: "창업 공간을 늘립니다.",
+            category: "경제",
+            details: []
           }
         ]
       }),
@@ -207,7 +216,10 @@ describe("mayor pledge analysis", () => {
     expect(analysis.candidates.map((candidate) => candidate.id)).toEqual([
       "seoul-a"
     ]);
-    expect(analysis.pledgeItems.map((pledge) => pledge.id)).toEqual(["a-1"]);
+    expect(analysis.pledgeItems.map((pledge) => pledge.id)).toEqual([
+      "a-1",
+      "a-2"
+    ]);
     expect(
       analysis.keywords
         .map((keyword) => keyword.keyword)
@@ -232,6 +244,13 @@ describe("mayor pledge analysis", () => {
           pledges: [
             {
               id: "pledge-1",
+              title: "청년 일자리",
+              summary: "청년 일자리 창출과 창업 공간",
+              category: "경제",
+              details: ["주거 안정"]
+            },
+            {
+              id: "pledge-2",
               title: "청년 일자리",
               summary: "청년 일자리 창출과 창업 공간",
               category: "경제",
@@ -277,6 +296,13 @@ describe("mayor pledge analysis", () => {
               details: [
                 "부산시민 대상 글로벌허브도시 특별법 인센티브로 기업 유치"
               ]
+            },
+            {
+              id: "pledge-2",
+              title: "글로벌허브도시 특별법 인센티브",
+              summary: "글로벌허브도시 특별법 인센티브로 기업 유치",
+              category: "경제",
+              details: []
             }
           ]
         })
@@ -294,22 +320,89 @@ describe("mayor pledge analysis", () => {
     expect(keywordText).not.toContain("부산시민");
   });
 
+  it("removes election-material formatting guidance from policy keywords", () => {
+    const analysis = analyzeMayorPledges(
+      [
+        makeCandidate({
+          districtName: "가평군",
+          id: "guide-noise",
+          officeName: "구·시·군의 장선거",
+          pledges: Array.from({ length: 5 }, (_, index) => ({
+            id: `pledge-${index + 1}`,
+            title: "지역사회 통합돌봄",
+            summary:
+              "글씨체 글씨색 선택 가능 후보자 사진 홍보에 필요한 도표",
+            category: "복지",
+            details: ["지역사회 통합돌봄 체계를 구축합니다."]
+          }))
+        })
+      ],
+      {},
+      () => true
+    );
+    const keywordText = analysis.keywords
+      .map((keyword) => keyword.keyword)
+      .join(" ");
+
+    expect(keywordText).toContain("지역사회 통합돌봄");
+    expect(keywordText).not.toContain("글씨체");
+    expect(keywordText).not.toContain("글씨색");
+    expect(keywordText).not.toContain("도표");
+    expect(keywordText).not.toContain("후보자 사진");
+  });
+
+  it("does not promote one-off phrases as aggregate representative keywords", () => {
+    const analysis = analyzeMayorPledges(
+      [
+        makeCandidate({
+          id: "candidate-a",
+          pledges: [
+            {
+              id: "a-1",
+              title: "해양 관광",
+              summary: "관광 거점을 정비합니다.",
+              category: "문화",
+              details: []
+            }
+          ]
+        }),
+        makeCandidate({
+          id: "candidate-b",
+          pledges: [
+            {
+              id: "b-1",
+              title: "청년 창업",
+              summary: "창업 공간을 늘립니다.",
+              category: "경제",
+              details: []
+            }
+          ]
+        })
+      ],
+      {},
+      () => true
+    );
+
+    expect(analysis.keywords).toEqual([]);
+    expect(analysis.candidateKeywords).toHaveLength(2);
+  });
+
   it("compacts mayor analysis before passing it to the client component", () => {
     const longText = "transit ".repeat(80).trim();
     const analysis = prepareMayorPledgeClientAnalysis({
       candidateKeywords: [],
       keywords: [
         {
-          candidateCount: 1,
+          candidateCount: 2,
           count: 100,
           keyword: "transit",
-          pledgeCount: 1
+          pledgeCount: 2
         },
-        ...Array.from({ length: 39 }, (_, index) => ({
-          candidateCount: 1,
+        ...Array.from({ length: MAYOR_CLIENT_KEYWORD_LIMIT + 5 }, (_, index) => ({
+          candidateCount: 2,
           count: 99 - index,
           keyword: `keyword-${index + 1}`,
-          pledgeCount: 1
+          pledgeCount: 2
         }))
       ],
       pledgeItems: [
@@ -329,7 +422,7 @@ describe("mayor pledge analysis", () => {
       policyCategories: []
     });
 
-    expect(analysis.keywords).toHaveLength(34);
+    expect(analysis.keywords).toHaveLength(MAYOR_CLIENT_KEYWORD_LIMIT);
     expect(analysis.pledgeItems[0].keywords).toEqual(["transit"]);
     expect(analysis.pledgeItems[0].pledgeText.length).toBeLessThanOrEqual(173);
   });
@@ -338,15 +431,15 @@ describe("mayor pledge analysis", () => {
     const analysis = prepareMayorPledgeClientAnalysis({
       candidateKeywords: [],
       keywords: [
-        ...Array.from({ length: 34 }, (_, index) => ({
-          candidateCount: 1,
+        ...Array.from({ length: MAYOR_CLIENT_KEYWORD_LIMIT }, (_, index) => ({
+          candidateCount: 2,
           count: 34 - index,
           keyword: `keyword-${index + 1}`,
           pledgeCount: 34 - index,
           score: 100 - index
         })),
         {
-          candidateCount: 1,
+          candidateCount: 2,
           count: 100,
           keyword: "late high-count keyword",
           pledgeCount: 100,
@@ -357,7 +450,7 @@ describe("mayor pledge analysis", () => {
       policyCategories: []
     });
 
-    expect(analysis.keywords).toHaveLength(34);
+    expect(analysis.keywords).toHaveLength(MAYOR_CLIENT_KEYWORD_LIMIT);
     expect(analysis.keywords[0].keyword).toBe("keyword-1");
     expect(analysis.keywords.map((keyword) => keyword.keyword)).not.toContain(
       "late high-count keyword"
