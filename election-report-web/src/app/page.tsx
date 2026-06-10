@@ -1274,7 +1274,7 @@ function LandingFooter() {
           <Info focusable="false" size={18} strokeWidth={2} />
         </span>
         <p>
-          본 서비스는 공공데이터를 기반으로 제공되며, 분석 결과는 참고 자료로 활용해 주세요.
+          본 프로젝트는 중앙선거관리위원회 공개데이터를 기반으로 하며, 특정 정당이나 후보를 지지하거나 반대하지 않습니다.
         </p>
       </div>
       <nav aria-label="랜딩 하단 링크" className="landing-footer-links">
