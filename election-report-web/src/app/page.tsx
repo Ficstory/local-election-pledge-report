@@ -1,5 +1,23 @@
 import Link from "next/link";
 
+import provincesGeo from "../../public/geodata/kr/skorea_provinces_geo_simple.json";
+import {
+  ArrowRight,
+  BarChart3,
+  BookOpenText,
+  ChartPie,
+  ChevronRight,
+  Database,
+  Download,
+  FileText,
+  GitCompareArrows,
+  MapPinned,
+  Search,
+  ShieldCheck,
+  UserSearch,
+  UsersRound
+} from "lucide-react";
+
 import { MayorPledgeAnalysis } from "./MayorPledgeAnalysis";
 import {
   type CandidateListFilters,
@@ -15,19 +33,13 @@ import {
   type EducationOrientationId,
   type EducationOrientationProfile
 } from "../lib/education-orientation";
+import { buildExecutiveAnalysisPath } from "../lib/executive-analysis-api";
+import { type MayorPledgeFilter } from "../lib/mayor-pledge-analysis";
 import {
-  analyzeMayorPledges,
-  prepareMayorPledgeClientAnalysis,
-  type MayorPledgeFilter
-} from "../lib/mayor-pledge-analysis";
-import {
-  candidateMatchesElectionTab,
-  electionTabs,
   executiveAnalysisCopyByTab,
   isExecutiveElectionTab,
   officeTypeForElectionTab,
-  parseElectionTab,
-  type ElectionTabId
+  parseElectionTab
 } from "../lib/election-tabs";
 import {
   CANDIDATE_LIST_PAGE_SIZE,
@@ -51,6 +63,35 @@ export const dynamic = "force-dynamic";
 
 type HomeProps = {
   searchParams: Promise<Record<string, string | string[] | undefined>>;
+};
+
+type GeoPosition = [number, number];
+type GeoRing = GeoPosition[];
+type GeoPolygon = GeoRing[];
+type GeoMultiPolygon = GeoPolygon[];
+
+type ProvinceFeature = {
+  geometry:
+    | {
+        coordinates: GeoPolygon;
+        type: "Polygon";
+      }
+    | {
+        coordinates: GeoMultiPolygon;
+        type: "MultiPolygon";
+      };
+  properties: {
+    base_year: string;
+    code: string;
+    name: string;
+    name_eng: string;
+  };
+  type: "Feature";
+};
+
+type ProvinceFeatureCollection = {
+  features: ProvinceFeature[];
+  type: "FeatureCollection";
 };
 
 type EducationSortId =
@@ -116,6 +157,202 @@ const officialEducationRegions = new Set([
   "충청남도",
   "충청북도"
 ]);
+
+const provinceFeatureCollection = provincesGeo as unknown as ProvinceFeatureCollection;
+const koreaMapWidth = 220;
+const koreaMapHeight = 250;
+const koreaMapPadding = 12;
+
+type ProvinceMapLabel = {
+  href: string;
+  label: string;
+  name: string;
+  x: number;
+  y: number;
+};
+
+const landingProvinceRegionFilterByName: Record<string, string> = {
+  강원도: "강원특별자치도",
+  광주광역시: "전남광주통합특별시",
+  전라남도: "전남광주통합특별시",
+  전라북도: "전북특별자치도"
+};
+
+const landingProvinceLabelsByName: Record<
+  string,
+  Omit<ProvinceMapLabel, "href" | "name">
+> = {
+  강원도: { label: "강원도", x: 137, y: 62 },
+  경기도: { label: "경기도", x: 91, y: 86 },
+  경상남도: { label: "경상남도", x: 125, y: 151 },
+  경상북도: { label: "경상북도", x: 143, y: 108 },
+  광주광역시: { label: "광주", x: 71, y: 150 },
+  대구광역시: { label: "대구", x: 136, y: 130 },
+  대전광역시: { label: "대전", x: 94, y: 117 },
+  부산광역시: { label: "부산", x: 152, y: 154 },
+  서울특별시: { label: "서울", x: 86, y: 67 },
+  세종특별자치시: { label: "세종", x: 98, y: 102 },
+  울산광역시: { label: "울산", x: 160, y: 135 },
+  인천광역시: { label: "인천", x: 58, y: 71 },
+  전라남도: { label: "전라남도", x: 78, y: 169 },
+  전라북도: { label: "전라북도", x: 88, y: 131 },
+  제주특별자치도: { label: "제주도", x: 91, y: 220 },
+  충청남도: { label: "충청남도", x: 65, y: 106 },
+  충청북도: { label: "충청북도", x: 111, y: 103 }
+};
+
+function landingProvinceRegionName(provinceName: string) {
+  return landingProvinceRegionFilterByName[provinceName] ?? provinceName;
+}
+
+function landingProvinceHref(provinceName: string) {
+  const params = new URLSearchParams();
+  params.set("election", "regional-executive");
+  params.set("region", landingProvinceRegionName(provinceName));
+
+  return `/?${params.toString()}`;
+}
+
+const landingProvinceLabels = provinceFeatureCollection.features.flatMap((feature) => {
+  const label = landingProvinceLabelsByName[feature.properties.name];
+
+  return label
+    ? [
+        {
+          ...label,
+          href: landingProvinceHref(feature.properties.name),
+          name: feature.properties.name
+        }
+      ]
+    : [];
+});
+
+function getProvincePolygons(feature: ProvinceFeature): GeoPolygon[] {
+  return feature.geometry.type === "Polygon"
+    ? [feature.geometry.coordinates]
+    : feature.geometry.coordinates;
+}
+
+function collectProvincePositions(features: ProvinceFeature[]) {
+  const positions: GeoPosition[] = [];
+
+  for (const feature of features) {
+    for (const polygon of getProvincePolygons(feature)) {
+      for (const ring of polygon) {
+        positions.push(...ring);
+      }
+    }
+  }
+
+  return positions;
+}
+
+const koreaMapBounds = collectProvincePositions(
+  provinceFeatureCollection.features
+).reduce(
+  (bounds, [longitude, latitude]) => ({
+    maxLatitude: Math.max(bounds.maxLatitude, latitude),
+    maxLongitude: Math.max(bounds.maxLongitude, longitude),
+    minLatitude: Math.min(bounds.minLatitude, latitude),
+    minLongitude: Math.min(bounds.minLongitude, longitude)
+  }),
+  {
+    maxLatitude: -Infinity,
+    maxLongitude: -Infinity,
+    minLatitude: Infinity,
+    minLongitude: Infinity
+  }
+);
+
+const koreaLongitudeSpan = koreaMapBounds.maxLongitude - koreaMapBounds.minLongitude;
+const koreaLatitudeSpan = koreaMapBounds.maxLatitude - koreaMapBounds.minLatitude;
+const koreaMapScale = Math.min(
+  (koreaMapWidth - koreaMapPadding * 2) / koreaLongitudeSpan,
+  (koreaMapHeight - koreaMapPadding * 2) / koreaLatitudeSpan
+);
+const koreaMapOffsetX =
+  (koreaMapWidth - koreaLongitudeSpan * koreaMapScale) / 2;
+const koreaMapOffsetY =
+  (koreaMapHeight - koreaLatitudeSpan * koreaMapScale) / 2;
+
+function projectKoreaPoint([longitude, latitude]: GeoPosition): GeoPosition {
+  return [
+    Number(
+      (
+        (longitude - koreaMapBounds.minLongitude) * koreaMapScale +
+        koreaMapOffsetX
+      ).toFixed(2)
+    ),
+    Number(
+      (
+        (koreaMapBounds.maxLatitude - latitude) * koreaMapScale +
+        koreaMapOffsetY
+      ).toFixed(2)
+    )
+  ];
+}
+
+function positionsToBounds(positions: GeoPosition[]) {
+  return positions.reduce(
+    (bounds, [x, y]) => ({
+      maxX: Math.max(bounds.maxX, x),
+      maxY: Math.max(bounds.maxY, y),
+      minX: Math.min(bounds.minX, x),
+      minY: Math.min(bounds.minY, y)
+    }),
+    {
+      maxX: -Infinity,
+      maxY: -Infinity,
+      minX: Infinity,
+      minY: Infinity
+    }
+  );
+}
+
+const koreaMapProjectedBounds = positionsToBounds([
+  ...collectProvincePositions(provinceFeatureCollection.features).map(projectKoreaPoint),
+  ...landingProvinceLabels.map((label) => [label.x, label.y] satisfies GeoPosition)
+]);
+const koreaMapViewBoxPadding = 8;
+const koreaMapViewBox = {
+  height:
+    koreaMapProjectedBounds.maxY -
+    koreaMapProjectedBounds.minY +
+    koreaMapViewBoxPadding * 2,
+  width:
+    koreaMapProjectedBounds.maxX -
+    koreaMapProjectedBounds.minX +
+    koreaMapViewBoxPadding * 2,
+  x: koreaMapProjectedBounds.minX - koreaMapViewBoxPadding,
+  y: koreaMapProjectedBounds.minY - koreaMapViewBoxPadding
+};
+const koreaMapViewBoxValue = [
+  koreaMapViewBox.x.toFixed(2),
+  koreaMapViewBox.y.toFixed(2),
+  koreaMapViewBox.width.toFixed(2),
+  koreaMapViewBox.height.toFixed(2)
+].join(" ");
+
+function ringToPath(ring: GeoRing) {
+  const projectedPoints = ring.map(projectKoreaPoint);
+
+  if (projectedPoints.length === 0) {
+    return "";
+  }
+
+  return `${projectedPoints
+    .map(
+      ([x, y], index) => `${index === 0 ? "M" : "L"}${x.toFixed(2)} ${y.toFixed(2)}`
+    )
+    .join(" ")} Z`;
+}
+
+function provinceToPath(feature: ProvinceFeature) {
+  return getProvincePolygons(feature)
+    .flatMap((polygon) => polygon.map(ringToPath))
+    .filter(Boolean)
+    .join(" ");
+}
 
 function singleParam(
   params: Record<string, string | string[] | undefined>,
@@ -220,10 +457,6 @@ function buildEducationHref(
   return `/?${nextParams.toString()}`;
 }
 
-function buildTabHref(tabId: ElectionTabId) {
-  return `/?election=${tabId}`;
-}
-
 function candidateMaterialUrl(candidate: Candidate) {
   return candidateTopFivePledgeViewerUrl(candidate);
 }
@@ -297,26 +530,20 @@ function uniqueSorted(values: Array<string | undefined>) {
   ].sort((left, right) => left.localeCompare(right, "ko"));
 }
 
-function buildMayorOptions(
-  mayorCandidates: ElectionCandidateOption[],
-  filters: MayorPledgeFilter
-) {
-  const regionCandidates = mayorCandidates.filter(
-    (candidate) => !filters.regionName || candidate.regionName === filters.regionName
-  );
-  const partyCandidates = regionCandidates.filter(
-    (candidate) => !filters.partyName || candidate.partyName === filters.partyName
-  );
-
+function buildMayorOptions(mayorCandidates: ElectionCandidateOption[]) {
   return {
+    districts: uniqueSorted(
+      mayorCandidates.map((candidate) => candidate.districtName)
+    ),
     regions: uniqueSorted(mayorCandidates.map((candidate) => candidate.regionName)),
-    parties: uniqueSorted(regionCandidates.map((candidate) => candidate.partyName)),
-    candidates: partyCandidates
+    parties: uniqueSorted(mayorCandidates.map((candidate) => candidate.partyName)),
+    candidates: mayorCandidates
       .map((candidate) => ({
+        districtName: candidate.districtName,
         id: candidate.id,
         label: `${candidate.candidateName} (${candidateLocation(candidate)})`,
         partyName: candidate.partyName,
-        regionName: candidateLocation(candidate)
+        regionName: candidate.regionName
       }))
       .sort((left, right) => left.label.localeCompare(right.label, "ko"))
   };
@@ -467,24 +694,6 @@ function compareToggleHref({
   });
 }
 
-function ElectionTypeTabs({ activeTab }: { activeTab: ElectionTabId }) {
-  return (
-    <nav className="election-tabs" aria-label="선거 유형 선택">
-      {electionTabs.map((tab) => (
-        <Link
-          aria-current={activeTab === tab.id ? "page" : undefined}
-          className={`election-tab ${activeTab === tab.id ? "active" : ""}`}
-          href={buildTabHref(tab.id)}
-          key={tab.id}
-        >
-          <span>{tab.label}</span>
-          <small>{tab.description}</small>
-        </Link>
-      ))}
-    </nav>
-  );
-}
-
 function shouldRenderLanding(
   params: Record<string, string | string[] | undefined>
 ) {
@@ -506,6 +715,282 @@ function shouldRenderLanding(
   return !dashboardKeys.some((key) => Boolean(singleParam(params, key)?.trim()));
 }
 
+const landingMetrics = [
+  { Icon: UsersRound, label: "총 후보자", value: "697명" },
+  { Icon: FileText, label: "총 공약 수", value: "3,340개" },
+  { Icon: ShieldCheck, label: "정책 분야", value: "20개" },
+  { Icon: MapPinned, label: "분석 선거구", value: "254개" }
+];
+
+const landingPolicyShares = [
+  { label: "경제·산업", value: "28.4%" },
+  { label: "복지·보건", value: "22.1%" },
+  { label: "교육", value: "15.3%" },
+  { label: "국토·환경", value: "13.7%" },
+  { label: "정치·행정", value: "8.9%" },
+  { label: "기타", value: "11.6%" }
+];
+
+const landingFeatures = [
+  {
+    description:
+      "중앙선거관리위원회 공개데이터를 기반으로 정확하고 투명한 정보를 제공합니다.",
+    Icon: Database,
+    title: "신뢰할 수 있는 데이터"
+  },
+  {
+    description:
+      "공약의 키워드, 분야, 빈도, 지역별 분포까지 데이터로 입체적으로 분석합니다.",
+    Icon: Search,
+    title: "깊이 있는 분석"
+  },
+  {
+    description:
+      "후보자, 정당, 지역을 비교해 정책 경향과 선택의 차이를 한눈에 확인합니다.",
+    Icon: GitCompareArrows,
+    title: "비교로 보는 인사이트"
+  },
+  {
+    description:
+      "복잡한 데이터도 직관적인 시각화와 쉬운 탐색으로 누구나 활용할 수 있습니다.",
+    Icon: Download,
+    title: "누구나 활용 가능"
+  }
+];
+
+const landingPreviewTabs = [
+  { Icon: BarChart3, active: true, label: "공약 분석" },
+  { Icon: UserSearch, active: false, label: "후보자 검색" },
+  { Icon: BookOpenText, active: false, label: "교육감 분석" }
+];
+
+function LandingKoreaBoundaryMap() {
+  return (
+    <svg
+      aria-label="시도 단위 대한민국 행정구역 경계"
+      className="landing-korea-boundary-map"
+      role="img"
+      viewBox={koreaMapViewBoxValue}
+    >
+      <defs>
+        <filter
+          colorInterpolationFilters="sRGB"
+          height="130%"
+          id="landing-map-soft-shadow"
+          width="130%"
+          x="-15%"
+          y="-15%"
+        >
+          <feDropShadow dx="0" dy="3" floodColor="#94a3b8" floodOpacity="0.2" stdDeviation="3" />
+        </filter>
+      </defs>
+      <g filter="url(#landing-map-soft-shadow)">
+        {provinceFeatureCollection.features.map((feature) => {
+          const href = landingProvinceHref(feature.properties.name);
+
+          return (
+          <a
+            aria-label={`${feature.properties.name} 시·도지사 분석 보기`}
+            className="korea-province-link"
+            href={href}
+            key={feature.properties.code}
+          >
+            <path
+              className="korea-province"
+              clipRule="evenodd"
+              d={provinceToPath(feature)}
+              fillRule="evenodd"
+            >
+              <title>{feature.properties.name} 시·도지사 분석 보기</title>
+            </path>
+          </a>
+          );
+        })}
+      </g>
+      <g className="korea-label-layer">
+        {landingProvinceLabels.map((label) => (
+          <a
+            aria-label={`${label.name} 시·도지사 분석 보기`}
+            className="korea-map-label-link"
+            href={label.href}
+            key={label.name}
+          >
+            <text
+              className="korea-map-label"
+              textAnchor="middle"
+              x={label.x}
+              y={label.y}
+            >
+              {label.label}
+            </text>
+          </a>
+        ))}
+      </g>
+    </svg>
+  );
+}
+
+function LandingDashboardPreview() {
+  return (
+    <aside
+      aria-label="공약 분석 대시보드 미리보기"
+      className="landing-dashboard-preview"
+      id="analysis-method"
+    >
+      <div className="landing-preview-window">
+        <div className="landing-preview-topbar">
+          <strong>2026년 제9회 전국동시지방선거</strong>
+          <Link className="landing-source-link" href="/#data-source">
+            <Database aria-hidden="true" focusable="false" size={16} strokeWidth={2} />
+            데이터 출처
+          </Link>
+        </div>
+
+        <nav aria-label="미리보기 탭" className="landing-preview-tabs">
+          {landingPreviewTabs.map((tab) => {
+            const TabIcon = tab.Icon;
+
+            return (
+              <span className={tab.active ? "active" : undefined} key={tab.label}>
+                <TabIcon
+                  aria-hidden="true"
+                  focusable="false"
+                  size={16}
+                  strokeWidth={2}
+                />
+                {tab.label}
+              </span>
+            );
+          })}
+        </nav>
+
+        <section className="landing-preview-summary" aria-label="공약 분석 개요">
+          <h2>공약 분석 개요</h2>
+          <div className="landing-preview-metrics">
+            {landingMetrics.map((metric) => {
+              const MetricIcon = metric.Icon;
+
+              return (
+                <div className="landing-preview-metric" key={metric.label}>
+                  <span className="landing-preview-metric-icon" aria-hidden="true">
+                    <MetricIcon focusable="false" size={18} strokeWidth={2} />
+                  </span>
+                  <small>{metric.label}</small>
+                  <strong>{metric.value}</strong>
+                </div>
+              );
+            })}
+          </div>
+        </section>
+
+        <div className="landing-preview-grid">
+          <section className="landing-chart-card" aria-labelledby="policy-share-title">
+            <h2 className="landing-card-title" id="policy-share-title">
+              <ChartPie aria-hidden="true" focusable="false" size={18} strokeWidth={2} />
+              정책 분야별 공약 비중
+            </h2>
+            <div className="landing-chart-layout">
+              <div
+                aria-label="총 공약 수 3,340개 기준 정책 분야 비중"
+                className="landing-donut"
+                role="img"
+              >
+                <span>
+                  <strong>3,340</strong>
+                  총 공약 수
+                </span>
+              </div>
+              <dl className="landing-chart-legend">
+                {landingPolicyShares.map((share, index) => (
+                  <div key={share.label}>
+                    <dt>
+                      <span
+                        aria-hidden="true"
+                        className={`legend-dot tone-${index + 1}`}
+                      />
+                      {share.label}
+                    </dt>
+                    <dd>{share.value}</dd>
+                  </div>
+                ))}
+              </dl>
+            </div>
+          </section>
+
+          <section className="landing-map-card" aria-labelledby="region-map-title">
+            <h2 className="landing-card-title" id="region-map-title">
+              <MapPinned aria-hidden="true" focusable="false" size={18} strokeWidth={2} />
+              지역별 분석 결과보기
+            </h2>
+            <div className="landing-map-panel">
+              <div className="landing-map-viewport">
+                <LandingKoreaBoundaryMap />
+              </div>
+            </div>
+          </section>
+        </div>
+
+        <section className="landing-preview-cta">
+          <div className="landing-preview-cta-icon" aria-hidden="true">
+            <BarChart3 focusable="false" size={22} strokeWidth={2} />
+          </div>
+          <div>
+            <h2>공약이 선택으로 이어졌을까?</h2>
+            <p>공약의 약속과 실제 결과를 데이터로 확인해보세요.</p>
+          </div>
+          <Link className="landing-preview-button" href="/?election=regional-executive">
+            시·도지사 분석 보기
+            <ArrowRight aria-hidden="true" focusable="false" size={16} strokeWidth={2} />
+          </Link>
+        </section>
+      </div>
+    </aside>
+  );
+}
+
+function LandingFeatureStrip() {
+  return (
+    <section className="landing-feature-strip" aria-label="주요 기능">
+      {landingFeatures.map((feature) => {
+        const FeatureIcon = feature.Icon;
+
+        return (
+          <article className="landing-feature-item" key={feature.title}>
+            <span className="landing-feature-icon" aria-hidden="true">
+              <FeatureIcon focusable="false" size={24} strokeWidth={2} />
+            </span>
+            <div>
+              <h2>{feature.title}</h2>
+              <p>{feature.description}</p>
+            </div>
+          </article>
+        );
+      })}
+    </section>
+  );
+}
+
+function LandingSourceBar() {
+  return (
+    <section className="landing-source-bar" id="data-source">
+      <div className="landing-source-bar-title">
+        <span className="landing-source-bar-icon" aria-hidden="true">
+          <Database focusable="false" size={20} strokeWidth={2} />
+        </span>
+        <strong>데이터 출처</strong>
+      </div>
+      <p>
+        중앙선거관리위원회 공개데이터와 후보자 선거자료를 연결해 제공하며,
+        원문 확인 흐름을 우선합니다.
+      </p>
+      <Link href="/candidates/search">
+        후보자 검색으로 이동
+        <ArrowRight aria-hidden="true" focusable="false" size={15} strokeWidth={2} />
+      </Link>
+    </section>
+  );
+}
+
 function ProjectLanding() {
   return (
     <main className="page-shell landing-page">
@@ -514,16 +999,35 @@ function ProjectLanding() {
           <p className="eyebrow">중앙선거관리위원회 공개데이터 기반</p>
           <h1 id="landing-title">선거 공약과 결과를 함께 읽는 페이지</h1>
           <p className="lead">
-            후보자의 공약, 선거공보, 당선 결과를 연결해 어떤 정책 흐름이
-            선택으로 이어졌는지 확인할 수 있습니다.
+            <span>후보자의 공약, 선거공보, 당선 결과를</span>{" "}
+            <span>연결해 정책 흐름을 확인할 수 있습니다.</span>
           </p>
           <div className="landing-actions">
             <Link className="action-button primary" href="/?election=regional-executive">
-              공약 선택 분석 보기
+              시·도지사 분석 보기
+              <ArrowRight aria-hidden="true" focusable="false" size={18} strokeWidth={2} />
+            </Link>
+            <Link className="action-button secondary" href="/#landing-features">
+              주요 기능 둘러보기
+              <ChevronRight
+                aria-hidden="true"
+                focusable="false"
+                size={18}
+                strokeWidth={2}
+              />
             </Link>
           </div>
+          <p className="landing-source-note">
+            <ShieldCheck aria-hidden="true" focusable="false" size={16} strokeWidth={2} />
+            <span>중앙선거관리위원회 공식 공개데이터를 사용합니다.</span>
+          </p>
         </div>
+        <LandingDashboardPreview />
       </section>
+      <div id="landing-features">
+        <LandingFeatureStrip />
+      </div>
+      <LandingSourceBar />
     </main>
   );
 }
@@ -541,35 +1045,34 @@ export default async function Home({ searchParams }: HomeProps) {
     const officeType = officeTypeForElectionTab(activeTab);
     const executiveFilters: MayorPledgeFilter = {
       candidateId: singleParam(params, "candidate")?.trim() || undefined,
+      districtName: singleParam(params, "district")?.trim() || undefined,
       partyName: singleParam(params, "party")?.trim() || undefined,
       query: singleParam(params, "q")?.trim() || undefined,
       regionName: singleParam(params, "region")?.trim() || undefined
     };
-    const [executiveCandidates, executiveAnalysisCandidates] = await Promise.all([
-      listElectionCandidateOptionsByFilters({
-        officeType
-      }),
-      listElectionCandidatesByFilters({
-        officeType,
-        partyName: executiveFilters.partyName,
-        regionName: executiveFilters.regionName
-      })
-    ]);
-    const analysis = analyzeMayorPledges(
-      executiveAnalysisCandidates,
-      executiveFilters,
-      (candidate) => candidateMatchesElectionTab(candidate, activeTab)
-    );
+    const executiveCandidates = await listElectionCandidateOptionsByFilters({
+      officeType
+    });
+    const analysisUrl = buildExecutiveAnalysisPath({
+      electionValue: activeTab,
+      filters: executiveFilters
+    });
 
     return (
       <main className="page-shell mayor-page">
-        <ElectionTypeTabs activeTab={activeTab} />
         <MayorPledgeAnalysis
-          analysis={prepareMayorPledgeClientAnalysis(analysis)}
+          analysisUrl={analysisUrl}
           copy={executiveAnalysisCopyByTab[activeTab]}
           electionValue={activeTab}
           filters={executiveFilters}
-          options={buildMayorOptions(executiveCandidates, executiveFilters)}
+          key={`${activeTab}:${executiveFilters.regionName ?? ""}:${
+            executiveFilters.districtName ?? ""
+          }:${executiveFilters.partyName ?? ""}:${
+            executiveFilters.candidateId ?? ""
+          }:${
+            executiveFilters.query ?? ""
+          }`}
+          options={buildMayorOptions(executiveCandidates)}
         />
       </main>
     );
@@ -689,7 +1192,6 @@ export default async function Home({ searchParams }: HomeProps) {
 
   return (
     <main className="page-shell">
-      <ElectionTypeTabs activeTab={activeTab} />
       <section className="workspace-header public-header education-header">
         <div>
           <p className="eyebrow">2026 전국동시지방선거</p>
@@ -1063,7 +1565,6 @@ export default async function Home({ searchParams }: HomeProps) {
                       ) : null}
                       <span
                         className={`orientation-chip ${profile.orientation.colorClass}`}
-                        title={`진보 ${profile.progressiveScore}점 / 보수 ${profile.conservativeScore}점`}
                       >
                         {profile.orientation.label}
                       </span>

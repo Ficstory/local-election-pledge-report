@@ -2,6 +2,10 @@
 
 전국 지방선거 후보자 공약, 공보물 수집 상태, 디자인 분석 결과를 확인하기 위한 Next.js 웹앱입니다.
 
+## 디자인 기준
+
+UI/UX 작업은 저장소 루트의 `DESIGN.md`를 먼저 확인합니다. 원본 디자인 컨벤션은 `docs/design/2026-06-10-ui-design-convention.md`에 보존되어 있고, 전역 디자인 토큰은 `src/app/globals.css`의 CSS 변수에 반영합니다.
+
 ## 실행
 
 ```powershell

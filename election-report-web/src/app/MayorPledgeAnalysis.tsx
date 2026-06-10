@@ -131,42 +131,95 @@ function uniqueSorted(values: Array<string | undefined>) {
   ].sort((left, right) => left.localeCompare(right, "ko"));
 }
 
+type MayorOptionFilters = Pick<
+  MayorPledgeFilter,
+  "candidateId" | "districtName" | "partyName" | "regionName"
+>;
+
+function matchesMayorOptionFilters(
+  candidate: CandidateOption,
+  filters: MayorOptionFilters
+) {
+  return (
+    (!filters.candidateId || candidate.id === filters.candidateId) &&
+    (!filters.regionName || candidate.regionName === filters.regionName) &&
+    (!filters.districtName || candidate.districtName === filters.districtName) &&
+    (!filters.partyName || candidate.partyName === filters.partyName)
+  );
+}
+
+export function mayorRegionOptionsForFilters(
+  candidates: CandidateOption[],
+  filters: Pick<MayorOptionFilters, "candidateId" | "districtName" | "partyName">
+) {
+  return uniqueSorted(
+    candidates
+      .filter((candidate) =>
+        matchesMayorOptionFilters(candidate, {
+          candidateId: filters.candidateId,
+          districtName: filters.districtName,
+          partyName: filters.partyName
+        })
+      )
+      .map((candidate) => candidate.regionName)
+  );
+}
+
+export function mayorPartyOptionsForFilters(
+  candidates: CandidateOption[],
+  filters: Pick<MayorOptionFilters, "candidateId" | "districtName" | "regionName">
+) {
+  return uniqueSorted(
+    candidates
+      .filter((candidate) =>
+        matchesMayorOptionFilters(candidate, {
+          candidateId: filters.candidateId,
+          districtName: filters.districtName,
+          regionName: filters.regionName
+        })
+      )
+      .map((candidate) => candidate.partyName)
+  );
+}
+
+export function mayorDistrictOptionsForFilters(
+  candidates: CandidateOption[],
+  filters: Pick<MayorOptionFilters, "candidateId" | "partyName" | "regionName">
+) {
+  return uniqueSorted(
+    candidates
+      .filter((candidate) =>
+        matchesMayorOptionFilters(candidate, {
+          candidateId: filters.candidateId,
+          partyName: filters.partyName,
+          regionName: filters.regionName
+        })
+      )
+      .map((candidate) => candidate.districtName)
+  );
+}
+
 export function mayorPartyOptionsForRegion(
   candidates: CandidateOption[],
   regionName?: string,
   districtName?: string
 ) {
-  return uniqueSorted(
-    candidates
-      .filter(
-        (candidate) =>
-          (!regionName || candidate.regionName === regionName) &&
-          (!districtName || candidate.districtName === districtName)
-      )
-      .map((candidate) => candidate.partyName)
-  );
+  return mayorPartyOptionsForFilters(candidates, { districtName, regionName });
 }
 
 export function mayorDistrictOptionsForRegion(
   candidates: CandidateOption[],
   regionName?: string
 ) {
-  return uniqueSorted(
-    candidates
-      .filter((candidate) => !regionName || candidate.regionName === regionName)
-      .map((candidate) => candidate.districtName)
-  );
+  return mayorDistrictOptionsForFilters(candidates, { regionName });
 }
 
 export function filteredMayorCandidateOptions(
   candidates: CandidateOption[],
   filters: Pick<MayorPledgeFilter, "districtName" | "partyName" | "regionName">
 ) {
-  return candidates.filter(
-    (candidate) =>
-      (!filters.regionName || candidate.regionName === filters.regionName) &&
-      (!filters.districtName || candidate.districtName === filters.districtName) &&
-      (!filters.partyName || candidate.partyName === filters.partyName)
+  return candidates.filter((candidate) =>
+    matchesMayorOptionFilters(candidate, filters)
   );
 }
 
@@ -219,35 +272,84 @@ export function MayorPledgeAnalysis({
       : "loading";
   const analysis = loadedAnalysisForUrl ?? emptyAnalysis;
   const showDistrictFilter = electionValue === "local-executive";
-  const activeRegionName = options.regions.includes(selectedRegionName)
-    ? selectedRegionName
-    : "";
+  const selectedCandidate = options.candidates.find(
+    (candidate) => candidate.id === selectedCandidateId
+  );
+  const regionOptions = useMemo(() => {
+    const regions = mayorRegionOptionsForFilters(options.candidates, {
+      candidateId: selectedCandidate?.id,
+      districtName: showDistrictFilter
+        ? selectedDistrictName || undefined
+        : undefined,
+      partyName: selectedPartyName || undefined
+    });
+
+    return regions.length > 0 ||
+      selectedCandidate ||
+      selectedDistrictName ||
+      selectedPartyName
+      ? regions
+      : options.regions;
+  }, [
+    options.candidates,
+    options.regions,
+    selectedCandidate,
+    selectedDistrictName,
+    selectedPartyName,
+    showDistrictFilter
+  ]);
+  const activeRegionName =
+    selectedCandidate?.regionName ??
+    (regionOptions.includes(selectedRegionName) ? selectedRegionName : "");
   const districtOptions = useMemo(() => {
-    const districts = mayorDistrictOptionsForRegion(
-      options.candidates,
-      activeRegionName
-    );
+    const districts = mayorDistrictOptionsForFilters(options.candidates, {
+      candidateId: selectedCandidate?.id,
+      partyName: selectedPartyName || undefined,
+      regionName: activeRegionName || undefined
+    });
 
-    return districts.length > 0 || activeRegionName ? districts : options.districts;
-  }, [activeRegionName, options.candidates, options.districts]);
+    return districts.length > 0 ||
+      selectedCandidate ||
+      activeRegionName ||
+      selectedPartyName
+      ? districts
+      : options.districts;
+  }, [
+    activeRegionName,
+    options.candidates,
+    options.districts,
+    selectedCandidate,
+    selectedPartyName
+  ]);
   const activeDistrictName =
-    showDistrictFilter && districtOptions.includes(selectedDistrictName)
-      ? selectedDistrictName
-      : "";
+    showDistrictFilter && selectedCandidate
+      ? selectedCandidate.districtName ?? ""
+      : showDistrictFilter && districtOptions.includes(selectedDistrictName)
+        ? selectedDistrictName
+        : "";
   const partyOptions = useMemo(() => {
-    const parties = mayorPartyOptionsForRegion(
-      options.candidates,
-      activeRegionName,
-      activeDistrictName
-    );
+    const parties = mayorPartyOptionsForFilters(options.candidates, {
+      candidateId: selectedCandidate?.id,
+      districtName: activeDistrictName || undefined,
+      regionName: activeRegionName || undefined
+    });
 
-    return parties.length > 0 || activeRegionName || activeDistrictName
+    return parties.length > 0 ||
+      selectedCandidate ||
+      activeRegionName ||
+      activeDistrictName
       ? parties
       : options.parties;
-  }, [activeDistrictName, activeRegionName, options.candidates, options.parties]);
-  const activePartyName = partyOptions.includes(selectedPartyName)
-    ? selectedPartyName
-    : "";
+  }, [
+    activeDistrictName,
+    activeRegionName,
+    options.candidates,
+    options.parties,
+    selectedCandidate
+  ]);
+  const activePartyName =
+    selectedCandidate?.partyName ??
+    (partyOptions.includes(selectedPartyName) ? selectedPartyName : "");
   const candidateOptions = useMemo(
     () =>
       filteredMayorCandidateOptions(options.candidates, {
@@ -400,6 +502,43 @@ export function MayorPledgeAnalysis({
   function selectParty(partyName: string) {
     setSelectedPartyName(partyName);
     setSelectedCandidateId("");
+    setSelectedRegionName((currentRegionName) => {
+      if (!currentRegionName || !partyName) {
+        return currentRegionName;
+      }
+
+      return mayorRegionOptionsForFilters(options.candidates, { partyName }).includes(
+        currentRegionName
+      )
+        ? currentRegionName
+        : "";
+    });
+    setSelectedDistrictName((currentDistrictName) => {
+      if (!currentDistrictName || !partyName) {
+        return currentDistrictName;
+      }
+
+      return mayorDistrictOptionsForFilters(options.candidates, {
+        partyName,
+        regionName: activeRegionName || undefined
+      }).includes(currentDistrictName)
+        ? currentDistrictName
+        : "";
+    });
+  }
+
+  function selectCandidate(candidateId: string) {
+    setSelectedCandidateId(candidateId);
+
+    const candidate = options.candidates.find((option) => option.id === candidateId);
+
+    if (!candidate) {
+      return;
+    }
+
+    setSelectedRegionName(candidate.regionName);
+    setSelectedDistrictName(showDistrictFilter ? (candidate.districtName ?? "") : "");
+    setSelectedPartyName(candidate.partyName);
   }
 
   function showMoreCandidateKeywords() {
@@ -465,7 +604,7 @@ export function MayorPledgeAnalysis({
               value={activeRegionName}
             >
               <option value="">전체 지역</option>
-              {options.regions.map((region) => (
+              {regionOptions.map((region) => (
                 <option key={region} value={region}>
                   {region}
                 </option>
@@ -508,7 +647,7 @@ export function MayorPledgeAnalysis({
             <span>후보자 선택</span>
             <select
               name="candidate"
-              onChange={(event) => setSelectedCandidateId(event.target.value)}
+              onChange={(event) => selectCandidate(event.target.value)}
               value={activeCandidateId}
             >
               <option value="">전체 후보 합산</option>
@@ -567,7 +706,6 @@ export function MayorPledgeAnalysis({
               <div className="mayor-section-heading">
                 <div>
                   <h2>주요 공약 키워드</h2>
-                  <p>후보 커버리지와 반복 빈도를 함께 반영한 대표 구문입니다.</p>
                 </div>
                 {selectedKeyword ? (
                   <button
@@ -582,11 +720,6 @@ export function MayorPledgeAnalysis({
 
               {hasEnoughKeywords ? (
                 <>
-                  <div className="analysis-method-strip" aria-label="키워드 산출 기준">
-                    <span>대표 구문</span>
-                    <span>중복 변형 제거</span>
-                    <span>후보·공약 커버리지 반영</span>
-                  </div>
                   <div className="mayor-wordcloud-stage" aria-live="polite">
                     {cloudKeywords.map((keyword) => (
                       <button

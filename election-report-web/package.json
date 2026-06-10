@@ -35,6 +35,7 @@
     "@prisma/adapter-pg": "^7.8.0",
     "@prisma/client": "^7.8.0",
     "d3-cloud": "^1.2.9",
+    "lucide-react": "^1.17.0",
     "next": "latest",
     "react": "latest",
     "react-dom": "latest"

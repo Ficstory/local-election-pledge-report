@@ -59,6 +59,7 @@ type DbCandidate = Prisma.CandidateGetPayload<{
 
 export type CandidateListFilters = {
   criminalRecordStatus?: CandidateCriminalRecordStatus;
+  districtName?: string;
   electionResultStatus?: CandidateElectionResultStatus;
   officeType?: OfficeType;
   partyName?: string;
@@ -438,6 +439,13 @@ function buildCandidateWhere(
       ? {
           region: {
             name: filters.regionName
+          }
+        }
+      : {}),
+    ...(filters.districtName
+      ? {
+          district: {
+            name: filters.districtName
           }
         }
       : {}),

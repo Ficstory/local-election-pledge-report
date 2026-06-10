@@ -43,14 +43,16 @@ export function CandidateMaterials({ materials = [] }: CandidateMaterialsProps) 
                     원문 보기
                   </a>
                 ) : (
-                  <div className="action-button disabled">자료 준비 중</div>
+                  <div className="action-button disabled">
+                    선관위 공식자료 부재
+                  </div>
                 )}
               </article>
             );
           })}
         </div>
       ) : (
-        <p className="empty-copy">공개된 선거자료가 없습니다.</p>
+        <p className="empty-copy">선관위 공식자료 부재</p>
       )}
     </section>
   );

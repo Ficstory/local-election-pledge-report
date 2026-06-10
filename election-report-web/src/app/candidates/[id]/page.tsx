@@ -15,12 +15,6 @@ import { CandidateSourceInfo } from "./CandidateSourceInfo";
 
 export const dynamic = "force-dynamic";
 
-const materialStatusLabels = {
-  pending: "수집 전",
-  collected: "수집 완료",
-  analyzed: "분석 완료"
-};
-
 type CandidatePageProps = {
   params: Promise<{
     id: string;
@@ -125,25 +119,14 @@ export default async function CandidatePage({ params }: CandidatePageProps) {
             {candidate.ballotNumber}
           </p>
         </div>
-        <span className={`status-pill ${candidate.material.status}`}>
-          {materialStatusLabels[candidate.material.status]}
-        </span>
       </section>
 
-      <section className="content-grid detail-grid">
+      <section className="content-grid detail-basic-grid">
         <article className="panel">
           <div className="panel-heading">
             <h2>기본 정보</h2>
           </div>
           <dl className="info-list">
-            <div>
-              <dt>선거명</dt>
-              <dd>{candidate.electionName}</dd>
-            </div>
-            <div>
-              <dt>선거 ID</dt>
-              <dd>{candidate.electionId}</dd>
-            </div>
             <div>
               <dt>연령/성별</dt>
               <dd>
@@ -171,59 +154,18 @@ export default async function CandidatePage({ params }: CandidatePageProps) {
                 </dd>
               </div>
             ) : null}
-          </dl>
-        </article>
-
-        <article className="panel">
-          <div className="panel-heading">
-            <h2>공보물 분석</h2>
-          </div>
-          <dl className="info-list">
             <div>
-              <dt>페이지</dt>
-              <dd>{candidate.material.pageCount ?? "수집 후 기록"}</dd>
-            </div>
-            <div>
-              <dt>주요 색상</dt>
-              <dd className="swatch-row">
-                {candidate.material.dominantColors.length > 0
-                  ? candidate.material.dominantColors.map((color) => (
-                      <span
-                        aria-label={color}
-                        className="color-swatch"
-                        key={color}
-                        style={{ background: color }}
-                      />
-                    ))
-                  : "수집 후 기록"}
+              <dt>전과기록 공개자료</dt>
+              <dd className="criminal-record-summary">
+                <span
+                  className={`criminal-record-chip ${criminalRecordClass(
+                    criminalRecord
+                  )}`}
+                >
+                  {criminalRecordLabel(criminalRecord)}
+                </span>
+                <span>{criminalRecordDetail(criminalRecord)}</span>
               </dd>
-            </div>
-            <div>
-              <dt>폰트</dt>
-              <dd>{candidate.material.fontNotes}</dd>
-            </div>
-            <div>
-              <dt>구성</dt>
-              <dd>{candidate.material.layoutNotes}</dd>
-            </div>
-          </dl>
-        </article>
-
-        <article className="panel">
-          <div className="panel-heading">
-            <h2>전과기록 공개자료</h2>
-            <span
-              className={`criminal-record-chip ${criminalRecordClass(
-                criminalRecord
-              )}`}
-            >
-              {criminalRecordLabel(criminalRecord)}
-            </span>
-          </div>
-          <dl className="info-list">
-            <div>
-              <dt>요약</dt>
-              <dd>{criminalRecordDetail(criminalRecord)}</dd>
             </div>
             <div>
               <dt>자료 기준</dt>

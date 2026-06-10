@@ -1,6 +1,7 @@
 import type { Candidate } from "../types/election";
 
 export type EducationOrientationId = "progressive" | "conservative";
+export type EducationOrientationBasis = "color" | "keyword" | "manual";
 export type EducationOrientationConfidence = "high" | "medium" | "low";
 
 type OrientationRule = {
@@ -27,7 +28,14 @@ export type EducationPolicyAxis = {
   keywords: string[];
 };
 
+export type EducationColorOrientationEvidence = {
+  blue: number;
+  red: number;
+};
+
 export type EducationOrientationProfile = {
+  basis: EducationOrientationBasis;
+  colorEvidence?: EducationColorOrientationEvidence;
   confidence: EducationOrientationConfidence;
   conservativeScore: number;
   evidence: {
@@ -55,6 +63,75 @@ export const educationOrientationOptions: Array<{
     colorClass: "orientation-conservative"
   }
 ];
+
+const verifiedEducationColorOrientations: Record<
+  string,
+  EducationColorOrientationEvidence & { orientation: EducationOrientationId }
+> = {
+  "100153737": { orientation: "progressive", red: 26275, blue: 846802 },
+  "100153739": { orientation: "progressive", red: 3438, blue: 746563 },
+  "100153740": { orientation: "conservative", red: 238911, blue: 82960 },
+  "100153741": { orientation: "progressive", red: 26709, blue: 388259 },
+  "100153743": { orientation: "progressive", red: 5575, blue: 881516 },
+  "100153751": { orientation: "progressive", red: 11363, blue: 241455 },
+  "100153756": { orientation: "progressive", red: 4989, blue: 254255 },
+  "100153758": { orientation: "progressive", red: 5163, blue: 791439 },
+  "100153759": { orientation: "progressive", red: 3088, blue: 26880 },
+  "100153760": { orientation: "progressive", red: 1068, blue: 242719 },
+  "100153761": { orientation: "progressive", red: 2696, blue: 1056522 },
+  "100153762": { orientation: "progressive", red: 27382, blue: 326748 },
+  "100153763": { orientation: "progressive", red: 2578, blue: 391312 },
+  "100153764": { orientation: "progressive", red: 9427, blue: 147208 },
+  "100153770": { orientation: "progressive", red: 56484, blue: 304976 },
+  "100153771": { orientation: "progressive", red: 9247, blue: 842554 },
+  "100153774": { orientation: "conservative", red: 210514, blue: 7654 },
+  "100153776": { orientation: "progressive", red: 3580, blue: 438960 },
+  "100153778": { orientation: "progressive", red: 645, blue: 280961 },
+  "100153782": { orientation: "progressive", red: 5761, blue: 496467 },
+  "100153784": { orientation: "progressive", red: 279, blue: 205220 },
+  "100153785": { orientation: "progressive", red: 23947, blue: 829842 },
+  "100153786": { orientation: "progressive", red: 148279, blue: 403687 },
+  "100153787": { orientation: "progressive", red: 78498, blue: 212405 },
+  "100153788": { orientation: "progressive", red: 5868, blue: 620840 },
+  "100153791": { orientation: "progressive", red: 53605, blue: 104308 },
+  "100153794": { orientation: "progressive", red: 52173, blue: 309450 },
+  "100153797": { orientation: "progressive", red: 2233, blue: 956433 },
+  "100153800": { orientation: "conservative", red: 1622546, blue: 60836 },
+  "100153805": { orientation: "progressive", red: 13718, blue: 788270 },
+  "100153814": { orientation: "progressive", red: 11098, blue: 959839 },
+  "100153820": { orientation: "conservative", red: 185145, blue: 72405 },
+  "100153823": { orientation: "progressive", red: 2201, blue: 468852 },
+  "100153825": { orientation: "progressive", red: 15093, blue: 429251 },
+  "100153847": { orientation: "conservative", red: 6995631, blue: 110220 },
+  "100153856": { orientation: "progressive", red: 5649, blue: 507280 },
+  "100155563": { orientation: "progressive", red: 1915, blue: 1054728 },
+  "100156317": { orientation: "conservative", red: 270521, blue: 24176 },
+  "100156976": { orientation: "conservative", red: 141681, blue: 99408 },
+  "100156980": { orientation: "progressive", red: 7808, blue: 1063080 },
+  "100160241": { orientation: "progressive", red: 3096, blue: 129567 },
+  "100160673": { orientation: "progressive", red: 6933, blue: 917569 },
+  "100161017": { orientation: "progressive", red: 4382, blue: 785733 },
+  "100161493": { orientation: "progressive", red: 6033, blue: 928733 },
+  "100162085": { orientation: "progressive", red: 959, blue: 414512 },
+  "100162107": { orientation: "progressive", red: 8479, blue: 1109270 },
+  "100162320": { orientation: "conservative", red: 715975, blue: 196554 },
+  "100162500": { orientation: "conservative", red: 162726, blue: 2543 },
+  "100162788": { orientation: "progressive", red: 12025, blue: 519585 },
+  "100162804": { orientation: "progressive", red: 35368, blue: 161404 },
+  "100162806": { orientation: "progressive", red: 7562, blue: 1088825 },
+  "100162976": { orientation: "conservative", red: 299934, blue: 207877 },
+  "100163064": { orientation: "progressive", red: 65123, blue: 126298 },
+  "100163258": { orientation: "conservative", red: 255099, blue: 141752 },
+  "100163408": { orientation: "progressive", red: 5170, blue: 233263 },
+  "100163844": { orientation: "conservative", red: 188182, blue: 3705 }
+};
+
+const manuallyVerifiedEducationOrientations: Record<
+  string,
+  EducationOrientationId
+> = {
+  "100163064": "conservative"
+};
 
 const progressiveRules: OrientationRule[] = [
   { keyword: "학생인권", weight: 8 },
@@ -314,11 +391,45 @@ function classifyConfidence(
   return "low";
 }
 
+function classifyColorConfidence({
+  blue,
+  red
+}: EducationColorOrientationEvidence): EducationOrientationConfidence {
+  const total = blue + red;
+  const gapRatio = total > 0 ? Math.abs(blue - red) / total : 0;
+
+  if (total >= 100000 && gapRatio >= 0.35) {
+    return "high";
+  }
+
+  if (total >= 10000 && gapRatio >= 0.15) {
+    return "medium";
+  }
+
+  return "low";
+}
+
 function classifyOrientation(
   progressiveScore: number,
   conservativeScore: number
 ): EducationOrientationId {
   return progressiveScore > conservativeScore ? "progressive" : "conservative";
+}
+
+function verifiedColorOrientation(candidate: Candidate) {
+  const candidateApiId = candidate.source.candidateApiId;
+
+  return candidateApiId
+    ? verifiedEducationColorOrientations[candidateApiId]
+    : undefined;
+}
+
+function manuallyVerifiedOrientation(candidate: Candidate) {
+  const candidateApiId = candidate.source.candidateApiId;
+
+  return candidateApiId
+    ? manuallyVerifiedEducationOrientations[candidateApiId]
+    : undefined;
 }
 
 function classifyPolicyAxes(text: string): EducationPolicyAxis[] {
@@ -356,13 +467,23 @@ export function classifyEducationCandidate(
   const text = candidateText(candidate);
   const progressive = scoreRules(text, progressiveRules);
   const conservative = scoreRules(text, conservativeRules);
-  const orientationId = classifyOrientation(
-    progressive.score,
-    conservative.score
-  );
+  const manualOrientationId = manuallyVerifiedOrientation(candidate);
+  const colorOrientation = verifiedColorOrientation(candidate);
+  const orientationId =
+    manualOrientationId ??
+    colorOrientation?.orientation ??
+    classifyOrientation(progressive.score, conservative.score);
 
   return {
-    confidence: classifyConfidence(progressive.score, conservative.score),
+    basis: manualOrientationId ? "manual" : colorOrientation ? "color" : "keyword",
+    colorEvidence: !manualOrientationId && colorOrientation
+      ? { blue: colorOrientation.blue, red: colorOrientation.red }
+      : undefined,
+    confidence: manualOrientationId
+      ? "high"
+      : colorOrientation
+        ? classifyColorConfidence(colorOrientation)
+        : classifyConfidence(progressive.score, conservative.score),
     conservativeScore: conservative.score,
     evidence: {
       conservative: conservative.evidence.slice(0, 6),

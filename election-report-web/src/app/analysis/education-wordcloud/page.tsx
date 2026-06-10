@@ -1,6 +1,5 @@
 import { readFile } from "node:fs/promises";
 import path from "node:path";
-import Link from "next/link";
 
 import {
   AnimatedEducationWordCloud,
@@ -12,7 +11,6 @@ export const dynamic = "force-dynamic";
 
 type KeywordSummary = {
   generatedAt: string;
-  materialCount: number;
   totalPages: number;
   topDetailedKeywords: Array<{
     keyword: string;
@@ -108,13 +106,9 @@ export default async function EducationWordCloudPage() {
 
   return (
     <main className="page-shell wordcloud-page">
-      <Link className="back-link" href="/">
-        ← 대시보드로 돌아가기
-      </Link>
       <AnimatedEducationWordCloud
         datasets={buildDatasets(summary)}
         generatedAt={generatedAt}
-        materialCount={summary.materialCount}
         pageCount={summary.totalPages}
       />
     </main>

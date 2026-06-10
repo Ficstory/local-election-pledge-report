@@ -11,6 +11,10 @@ import {
   prepareMayorPledgeClientAnalysis,
   type MayorPledgeClientAnalysis
 } from "../../../lib/mayor-pledge-analysis";
+import {
+  canUsePrecomputedExecutiveAnalysis,
+  readPrecomputedExecutiveAnalysis
+} from "../../../lib/precomputed-executive-analysis";
 
 const EXECUTIVE_ANALYSIS_CACHE_TTL_MS = 10 * 60 * 1000;
 
@@ -67,6 +71,19 @@ export async function GET(request: Request) {
     electionValue: analysisRequest.tab,
     filters: analysisRequest.filters
   });
+
+  if (canUsePrecomputedExecutiveAnalysis(analysisRequest.filters)) {
+    const precomputed = await readPrecomputedExecutiveAnalysis(analysisRequest.tab);
+
+    if (precomputed) {
+      return NextResponse.json({
+        analysis: precomputed.analysis,
+        cache: "precomputed",
+        generatedAt: precomputed.generatedAt
+      });
+    }
+  }
+
   const cached = cachedPayload(cacheKey);
 
   if (cached) {

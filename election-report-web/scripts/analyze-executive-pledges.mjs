@@ -9,6 +9,10 @@ import {
   EXECUTIVE_SG_TYPECODES,
   serializeExecutivePledgeAnalysis
 } from "../src/lib/executive-pledge-analysis.ts";
+import {
+  analyzeMayorPledges,
+  prepareMayorPledgeClientAnalysis
+} from "../src/lib/mayor-pledge-analysis.ts";
 import { createPrismaClient } from "./create-prisma-client.mjs";
 
 config({ path: ".env", quiet: true });
@@ -209,8 +213,25 @@ async function fetchExecutiveCandidates() {
   });
 }
 
-async function writeOutputs(serialized) {
+function clientAnalysisPayload(candidates, election, generatedAt) {
+  const officeType =
+    election === "regional-executive" ? "governor" : "municipal_mayor";
+  const analysis = analyzeMayorPledges(candidates, {}, (candidate) => {
+    return candidate.officeType === officeType;
+  });
+
+  return {
+    analysis: prepareMayorPledgeClientAnalysis(analysis),
+    election,
+    generatedAt
+  };
+}
+
+async function writeOutputs(serialized, clientPayloads) {
+  const clientOutputDir = path.join(outputDir, "client-analysis");
+
   await mkdir(outputDir, { recursive: true });
+  await mkdir(clientOutputDir, { recursive: true });
   await Promise.all([
     writeFile(path.join(outputDir, "summary.json"), serialized.summaryJson, "utf8"),
     writeFile(
@@ -237,6 +258,16 @@ async function writeOutputs(serialized) {
       path.join(outputDir, "candidate-keyword-summary.csv"),
       serialized.candidateKeywordSummaryCsv,
       "utf8"
+    ),
+    writeFile(
+      path.join(clientOutputDir, "regional-executive.json"),
+      JSON.stringify(clientPayloads.regionalExecutive),
+      "utf8"
+    ),
+    writeFile(
+      path.join(clientOutputDir, "local-executive.json"),
+      JSON.stringify(clientPayloads.localExecutive),
+      "utf8"
     )
   ]);
 }
@@ -244,9 +275,18 @@ async function writeOutputs(serialized) {
 try {
   const rows = await fetchExecutiveCandidates();
   const candidates = rows.map(mapCandidate);
-  const analysis = buildExecutivePledgeAnalysis(candidates);
+  const generatedAt = new Date().toISOString();
+  const analysis = buildExecutivePledgeAnalysis(candidates, { generatedAt });
+  const clientPayloads = {
+    localExecutive: clientAnalysisPayload(candidates, "local-executive", generatedAt),
+    regionalExecutive: clientAnalysisPayload(
+      candidates,
+      "regional-executive",
+      generatedAt
+    )
+  };
 
-  await writeOutputs(serializeExecutivePledgeAnalysis(analysis));
+  await writeOutputs(serializeExecutivePledgeAnalysis(analysis), clientPayloads);
 
   console.log(`Election ${electionId} executive pledge analysis complete.`);
   console.log(`Output: ${EXECUTIVE_PLEDGE_ANALYSIS_OUTPUT_DIR}`);

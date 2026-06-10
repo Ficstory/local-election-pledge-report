@@ -28,7 +28,6 @@ export type CloudDataset = {
 type AnimatedEducationWordCloudProps = {
   datasets: CloudDataset[];
   generatedAt: string;
-  materialCount: number;
   pageCount: number;
 };
 
@@ -530,7 +529,6 @@ function tableColumnLabels(datasetId: CloudDataset["id"]) {
 export function AnimatedEducationWordCloud({
   datasets,
   generatedAt,
-  materialCount,
   pageCount
 }: AnimatedEducationWordCloudProps) {
   const stageRef = useRef<HTMLDivElement>(null);
@@ -732,10 +730,6 @@ export function AnimatedEducationWordCloud({
           </p>
         </div>
         <div className="cloud-actions" aria-label="주요 작업">
-          <a className="primary-cloud-action" href="/analysis/education-wordcloud/downloads/pdf-links">
-            원본 공약 PDF 목록 다운로드
-            <span>{materialCount.toLocaleString("ko-KR")}건 · {pageCount.toLocaleString("ko-KR")}쪽</span>
-          </a>
           <Link className="secondary-cloud-action" href="/?office=education_superintendent">
             후보자별 보기
           </Link>

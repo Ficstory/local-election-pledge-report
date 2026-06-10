@@ -28,6 +28,7 @@ export function parseExecutiveAnalysisRequest(
 
   const filters: MayorPledgeFilter = {
     candidateId: optionalParam(searchParams, "candidate"),
+    districtName: optionalParam(searchParams, "district"),
     partyName: optionalParam(searchParams, "party"),
     query: optionalParam(searchParams, "q"),
     regionName: optionalParam(searchParams, "region")
@@ -35,6 +36,7 @@ export function parseExecutiveAnalysisRequest(
 
   return {
     candidateFilters: {
+      districtName: filters.districtName,
       officeType: officeTypeForElectionTab(tab),
       partyName: filters.partyName,
       regionName: filters.regionName
@@ -60,6 +62,10 @@ export function buildExecutiveAnalysisPath({
 
   if (filters.partyName) {
     params.set("party", filters.partyName);
+  }
+
+  if (filters.districtName) {
+    params.set("district", filters.districtName);
   }
 
   if (filters.query) {

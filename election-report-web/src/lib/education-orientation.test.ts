@@ -112,6 +112,134 @@ describe("education orientation classification", () => {
     expect(profile.confidence).toBe("low");
   });
 
+  it("uses verified blue-dominant campaign colors before conservative keyword scores", () => {
+    const candidate = makeEducationCandidate({
+      id: "color-progressive-override",
+      source: { candidateApiId: "100162806" },
+      pledges: [
+        {
+          id: "color-progressive-pledge",
+          title: "기초학력 자유민주주의 인성교육",
+          summary: "학력진단, 교육 정상화, 교권 회복, 생활지도를 강화합니다.",
+          category: "학력",
+          details: ["자유민주주의 역사교육과 인성교육을 강화합니다."]
+        }
+      ]
+    });
+
+    const profile = classifyEducationCandidate(candidate);
+
+    expect(profile.orientation.id).toBe("progressive");
+    expect(profile.basis).toBe("color");
+    expect(profile.colorEvidence).toEqual({ blue: 1088825, red: 7562 });
+    expect(profile.conservativeScore).toBeGreaterThan(profile.progressiveScore);
+  });
+
+  it("uses verified red-dominant campaign colors before progressive keyword scores", () => {
+    const candidate = makeEducationCandidate({
+      id: "color-conservative-override",
+      source: { candidateApiId: "100163258" },
+      pledges: [
+        {
+          id: "color-conservative-pledge",
+          title: "학생인권과 민주진보 교육 강화",
+          summary: "민주시민, 생태전환, 평화통일 교육을 확대합니다.",
+          category: "민주시민",
+          details: ["마을교육공동체와 노동인권 교육을 강화합니다."]
+        }
+      ]
+    });
+
+    const profile = classifyEducationCandidate(candidate);
+
+    expect(profile.orientation.id).toBe("conservative");
+    expect(profile.basis).toBe("color");
+    expect(profile.colorEvidence).toEqual({ blue: 141752, red: 255099 });
+    expect(profile.progressiveScore).toBeGreaterThan(profile.conservativeScore);
+  });
+
+  it("keeps verified blue-dominant Im Seong-mu and Ko Eui-sook as progressive", () => {
+    const imSeongMu = classifyEducationCandidate(
+      makeEducationCandidate({
+        id: "im-seong-mu",
+        source: { candidateApiId: "100162085" }
+      })
+    );
+    const koEuiSook = classifyEducationCandidate(
+      makeEducationCandidate({
+        id: "ko-eui-sook",
+        source: { candidateApiId: "100156980" }
+      })
+    );
+
+    expect(imSeongMu.orientation.id).toBe("progressive");
+    expect(imSeongMu.basis).toBe("color");
+    expect(imSeongMu.colorEvidence).toEqual({ blue: 414512, red: 959 });
+    expect(koEuiSook.orientation.id).toBe("progressive");
+    expect(koEuiSook.basis).toBe("color");
+    expect(koEuiSook.colorEvidence).toEqual({ blue: 1063080, red: 7808 });
+  });
+
+  it("keeps verified blue-dominant Kim Seok-jun as progressive", () => {
+    const profile = classifyEducationCandidate(
+      makeEducationCandidate({
+        id: "kim-seok-jun",
+        candidateName: "김석준",
+        source: { candidateApiId: "100162788" }
+      })
+    );
+
+    expect(profile.orientation.id).toBe("progressive");
+    expect(profile.basis).toBe("color");
+    expect(profile.colorEvidence).toEqual({ blue: 519585, red: 12025 });
+  });
+
+  it("keeps verified blue-dominant Sung Kwang-jin as progressive", () => {
+    const profile = classifyEducationCandidate(
+      makeEducationCandidate({
+        id: "sung-kwang-jin",
+        candidateName: "성광진",
+        source: { candidateApiId: "100153764" }
+      })
+    );
+
+    expect(profile.orientation.id).toBe("progressive");
+    expect(profile.basis).toBe("color");
+    expect(profile.colorEvidence).toEqual({ blue: 147208, red: 9427 });
+  });
+
+  it("keeps manually reviewed Park Hyun-sook, Shin Kyung-ho, and Lim Tae-hee orientations", () => {
+    const parkHyunSook = classifyEducationCandidate(
+      makeEducationCandidate({
+        id: "park-hyun-sook",
+        candidateName: "박현숙",
+        source: { candidateApiId: "100153782" }
+      })
+    );
+    const shinKyungHo = classifyEducationCandidate(
+      makeEducationCandidate({
+        id: "shin-kyung-ho",
+        candidateName: "신경호",
+        source: { candidateApiId: "100162320" }
+      })
+    );
+    const limTaeHee = classifyEducationCandidate(
+      makeEducationCandidate({
+        id: "lim-tae-hee",
+        candidateName: "임태희",
+        source: { candidateApiId: "100163064" }
+      })
+    );
+
+    expect(parkHyunSook.orientation.id).toBe("progressive");
+    expect(parkHyunSook.basis).toBe("color");
+    expect(shinKyungHo.orientation.id).toBe("conservative");
+    expect(shinKyungHo.basis).toBe("color");
+    expect(limTaeHee.orientation.id).toBe("conservative");
+    expect(limTaeHee.basis).toBe("manual");
+    expect(limTaeHee.colorEvidence).toBeUndefined();
+  });
+
   it("filters candidates by computed orientation", () => {
     const progressive = makeEducationCandidate({
       id: "progressive-candidate",

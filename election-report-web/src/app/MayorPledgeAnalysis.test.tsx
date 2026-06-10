@@ -3,9 +3,12 @@ import { describe, expect, it } from "vitest";
 
 import {
   filteredMayorCandidateOptions,
+  mayorDistrictOptionsForFilters,
   mayorDistrictOptionsForRegion,
   MayorPledgeAnalysis,
+  mayorPartyOptionsForFilters,
   mayorPartyOptionsForRegion,
+  mayorRegionOptionsForFilters,
   type CandidateOption
 } from "./MayorPledgeAnalysis";
 import type { MayorKeyword, MayorPledgeItem } from "../lib/mayor-pledge-analysis";
@@ -306,5 +309,58 @@ describe("MayorPledgeAnalysis", () => {
     );
 
     expect(regionalMarkup).not.toContain("세부지역 선택");
+  });
+
+  it("narrows region, district, and party options from a selected candidate", () => {
+    expect(
+      mayorRegionOptionsForFilters(regionalCandidateOptions, {
+        candidateId: "busan-reform"
+      })
+    ).toEqual(["부산광역시"]);
+    expect(
+      mayorDistrictOptionsForFilters(regionalCandidateOptions, {
+        candidateId: "busan-reform",
+        regionName: "부산광역시"
+      })
+    ).toEqual(["영도구"]);
+    expect(
+      mayorPartyOptionsForFilters(regionalCandidateOptions, {
+        candidateId: "busan-reform",
+        districtName: "영도구",
+        regionName: "부산광역시"
+      })
+    ).toEqual(["개혁신당"]);
+
+    const markup = renderToStaticMarkup(
+      <MayorPledgeAnalysis
+        analysis={{
+          candidateKeywords: [],
+          keywords: [],
+          pledgeItems: [],
+          policyCategories: []
+        }}
+        electionValue="local-executive"
+        filters={{
+          candidateId: "busan-reform"
+        }}
+        options={{
+          candidates: regionalCandidateOptions,
+          districts: ["강서구", "성남시", "수원시", "영도구", "종로구"],
+          parties: ["개혁신당", "국민의힘", "미래정당"],
+          regions: ["경기도", "부산광역시", "서울특별시"]
+        }}
+      />
+    );
+
+    expect(markup).toContain("부산광역시");
+    expect(markup).toContain("영도구");
+    expect(markup).toContain("개혁신당");
+    expect(markup).toContain("부산개혁 후보");
+    expect(markup).not.toContain("경기도");
+    expect(markup).not.toContain("서울특별시");
+    expect(markup).not.toContain("강서구");
+    expect(markup).not.toContain("국민의힘");
+    expect(markup).not.toContain("미래정당");
+    expect(markup).not.toContain("부산미래 후보");
   });
 });
